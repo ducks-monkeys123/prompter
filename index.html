@@ -162,9 +162,9 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     <button class="hb" id="restartBtn" type="button" title="Back to top (Home)">⤒ Top</button>
     <button class="hb paused" id="playBtn" type="button" title="Play / pause (Space)">▶ Play</button>
     <span class="group">
-      <button class="hb" id="slowBtn" type="button" title="Slower (↑ or wheel up)">−</button>
+      <button class="hb" id="slowBtn" type="button" title="Slower (↓ or wheel up)">−</button>
       <span class="readout"><span id="speedHud">5</span><small>speed</small></span>
-      <button class="hb" id="fastBtn" type="button" title="Faster (↓ or wheel down)">+</button>
+      <button class="hb" id="fastBtn" type="button" title="Faster (↑ or wheel down)">+</button>
     </span>
     <span class="group">
       <button class="hb" id="smallBtn" type="button" title="Smaller text (−)">A−</button>
@@ -384,8 +384,8 @@ Thank you.`;
     if (stage.hidden) return;
     const k = e.key;
     if (k === " " || k === "k") { e.preventDefault(); if (document.activeElement?.classList.contains("hb") && k === " ") { document.activeElement.blur(); } toggle(); }
-    else if (k === "ArrowUp") { e.preventDefault(); setSpeed(state.speed - 1); }
-    else if (k === "ArrowDown") { e.preventDefault(); setSpeed(state.speed + 1); }
+    else if (k === "ArrowUp") { e.preventDefault(); setSpeed(state.speed + 1); }
+    else if (k === "ArrowDown") { e.preventDefault(); setSpeed(state.speed - 1); }
     else if (k === "+" || k === "=") { setSize(state.size + 8); }
     else if (k === "-" || k === "_") { setSize(state.size - 8); }
     else if (k === "Home") { e.preventDefault(); state.pos = 0; scroller.scrollTop = 0; }
