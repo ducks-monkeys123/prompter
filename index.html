@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@500&display=swap">
 <style>
-/* Layout: two modes. A calm editor sheet to paste the script, then a full-screen blue-edged "stage" like the original with a reading line and a control bar that hides while rolling. */
+/* Layout: a two-pane editor. Left: tonight's set (up to 4) above an alphabetical song list with letter headings. Right: the selected song's title, speed and lyrics. Then a full-screen blue-edged "stage" that runs the set. */
 :root {
   --bg: #eef1f5;
   --surface: #ffffff;
@@ -16,7 +16,7 @@
   --line: #d5dbe4;
   --accent: #e8a317;      /* reading line amber */
   --tally: #e0352b;       /* on-air red */
-  --stage-bg: #ffffff;
+  --sel: #fff6e0;         /* selected song row */
   --stage-fg: #000000;
   --stage-dim: #3d6f8f;
   --stage-gradient: linear-gradient(to right, #4abfff 0%, #b4e5fe 20%, #eef9ff 40%, #ffffff 50%, #eef9ff 60%, #b4e5fe 80%, #4abfff 100%);
@@ -28,12 +28,12 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #11161d; --surface: #19202a; --fg: #e9edf2; --muted: #93a0b1; --line: #2a3340;
+    --bg: #11161d; --surface: #19202a; --fg: #e9edf2; --muted: #93a0b1; --line: #2a3340; --sel: #2c2716;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #11161d; --surface: #19202a; --fg: #e9edf2; --muted: #93a0b1; --line: #2a3340;
+  --bg: #11161d; --surface: #19202a; --fg: #e9edf2; --muted: #93a0b1; --line: #2a3340; --sel: #2c2716;
   color-scheme: dark;
 }
 *, *::before, *::after { box-sizing: border-box; }
@@ -41,30 +41,105 @@ html, body { height: 100%; }
 body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 16px; }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
+button:disabled { cursor: default; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- Editor ---------- */
-#editor { max-width: 860px; margin: 0 auto; padding-block: 32px 48px; padding-inline: 16px; display: grid; gap: 20px; }
-.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.brand h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(1.8rem, 5vw, 2.6rem); margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
-.brand .tally { width: 12px; height: 12px; border-radius: 50%; background: var(--tally); align-self: center; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tally) 20%, transparent); }
-.brand p { margin: 0; color: var(--muted); flex-basis: 100%; }
-.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
-label.cap { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
-#script { width: 100%; min-height: 300px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px; font-size: 1.05rem; line-height: 1.6; }
-.meta { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-.meta b { color: var(--fg); font-family: var(--f-mono); font-weight: 500; }
-.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-.field { display: grid; gap: 6px; }
+#editor { max-width: 1240px; margin: 0 auto; padding-block: 24px 48px; padding-inline: 16px; display: grid; gap: 16px; }
+.topbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 0; letter-spacing: -0.02em; }
+.brand .tally { width: 12px; height: 12px; border-radius: 50%; background: var(--tally); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tally) 20%, transparent); }
+.folderbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: flex-end; min-width: 0; flex: 1 1 420px; }
+#folderStatus { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; min-width: 0; text-align: right; flex: 1 1 220px; }
+.hint { margin: 0; color: var(--muted); font-size: .88rem; }
+.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.cap { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.ghost { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; }
+.ghost:hover:not(:disabled) { background: var(--bg); }
+.ghost.small { padding: 4px 10px; font-size: .88rem; white-space: nowrap; }
+.go { background: var(--tally); color: #fff; border: 0; border-radius: 8px; padding: 10px 18px; font-weight: 700; display: inline-flex; gap: 8px; align-items: center; justify-content: center; }
+.go:hover:not(:disabled) { filter: brightness(1.08); }
+.go:disabled { opacity: .45; filter: none; }
+.go.small { padding: 5px 12px; font-size: .9rem; white-space: nowrap; }
+.icon { background: transparent; border: 1px solid transparent; border-radius: 6px; width: 28px; height: 28px; display: inline-grid; place-items: center; color: var(--muted); flex: none; font-size: .9rem; }
+.icon:hover:not(:disabled) { border-color: var(--line); color: var(--fg); background: var(--bg); }
+.icon:disabled { opacity: .3; }
+.danger { color: var(--tally); border-color: color-mix(in srgb, var(--tally) 40%, var(--line)); }
+
+.workspace { display: grid; grid-template-columns: minmax(270px, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 780px) { .workspace { grid-template-columns: 1fr; } }
+.side { display: grid; gap: 16px; min-width: 0; }
+
+/* Tonight's set */
+.set-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#setList { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; max-height: 22vh; min-height: 0; overflow: auto; }
+#setList li { display: flex; align-items: center; gap: 4px; padding: 2px 4px 2px 6px; border-radius: 8px; background: var(--bg); min-width: 0; }
+#setList li.sel { background: var(--sel); }
+.num { font-family: var(--f-mono); font-size: .78rem; width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--fg); color: var(--surface); flex: none; }
+.set-title { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 3px 2px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-empty { color: var(--muted); font-size: .9rem; padding: 6px 2px; }
+.set-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.set-actions .ghost { padding-inline: 12px; white-space: nowrap; }
+.set-actions .go { white-space: nowrap; }
+.settings-sheet > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.settings-sheet > summary::-webkit-details-marker { display: none; }
+.settings-sheet > summary::before { content: "▸"; color: var(--muted); }
+.settings-sheet[open] > summary::before { content: "▾"; }
+#settingsSummary { color: var(--muted); font-size: .88rem; }
+.settings-sheet:not([open]) { padding-block: 10px; }
+
+/* Song list */
+.list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#search { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
+#songList { list-style: none; margin: 0; padding: 0; max-height: min(62vh, 640px); overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+#songList .letter { position: sticky; top: 0; z-index: 1; background: var(--surface); border-bottom: 1px solid var(--line); padding: 3px 12px; font-family: var(--f-mono); font-size: .78rem; color: var(--muted); }
+#songList .row { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); padding-right: 6px; }
+#songList .row:last-child { border-bottom: 0; }
+#songList .row.sel { background: var(--sel); box-shadow: inset 3px 0 0 var(--accent); }
+.pick { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 9px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inset { font-family: var(--f-mono); font-size: .72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.list-empty { padding: 14px 12px; color: var(--muted); }
+
+/* Lyrics pane */
+.pane { min-height: 70vh; align-content: start; }
+.pane-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, 260px); gap: 16px; align-items: end; }
+@media (max-width: 560px) { .pane-top { grid-template-columns: 1fr; } }
+.field { display: grid; gap: 6px; align-content: start; min-width: 0; }
 .field .row { display: flex; align-items: center; gap: 10px; }
 .field input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
 .field output { font-family: var(--f-mono); min-width: 3.5ch; text-align: right; }
+#widthOut { min-width: 4.5ch; }
+#songTitle { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--bg); font-family: var(--f-display); font-size: 1.35rem; font-weight: 600; }
+#script { width: 100%; min-height: 52vh; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; font-size: 1.05rem; line-height: 1.6; }
+.meta { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.meta b { color: var(--fg); font-family: var(--f-mono); font-weight: 500; }
+#saveState { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.pane-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.empty-pane { display: grid; place-items: center; text-align: center; gap: 12px; padding: 60px 16px; color: var(--muted); }
+
+#songPane { display: grid; gap: 12px; }
+.keys summary { cursor: pointer; color: var(--fg); }
+
+/* Fit-to-window layout on computer screens: only the song list and the lyrics box scroll. */
+@media (min-width: 781px) and (min-height: 600px) {
+  html, body { overflow: hidden; }
+  #editor { height: 100%; grid-template-rows: auto minmax(0, 1fr) auto; padding-block: 16px; gap: 12px; }
+  .workspace { min-height: 0; align-items: stretch; }
+  .side { min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+  .songs-sheet { min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); }
+  #songList { max-height: none; min-height: 0; }
+  .pane { min-height: 0; grid-template-rows: minmax(0, 1fr); }
+  #songPane { min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  #script { min-height: 0; height: 100%; resize: none; }
+  .settings-sheet[open] { max-height: 45vh; overflow: auto; }
+  #songList { min-height: 120px; }
+}
+
+/* Prompter settings */
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
 .toggle { display: flex; align-items: center; gap: 8px; }
-.toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
-.actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-.go { background: var(--tally); color: #fff; border: 0; border-radius: 8px; padding: 12px 22px; font-weight: 700; font-size: 1.05rem; display: inline-flex; gap: 10px; align-items: center; }
-.go:hover { filter: brightness(1.08); }
-.ghost { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 11px 16px; }
+.toggle input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
 .keys { color: var(--muted); font-size: 0.88rem; line-height: 1.7; }
 kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface); color: var(--fg); }
 
@@ -74,15 +149,11 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 #scroller::-webkit-scrollbar { display: none; }
 #text { max-width: var(--line-ch, 32ch); margin: 0 auto; padding-inline: 16px; padding-block: 38vh 70vh; font-family: Constantia, "Cambria", Georgia, serif; font-weight: 700; line-height: 1.3; white-space: pre-wrap; overflow-wrap: anywhere; text-align: center; }
 #text.wide { max-width: none; }
-#widthOut { min-width: 4.5ch; }
 #stage.mirror #text { transform: scaleX(-1); }
-#stage.flip #text { transform: scaleY(-1); }
-#stage.mirror.flip #text { transform: scale(-1, -1); }
 .guide { position: absolute; left: 0; right: 0; top: 38vh; height: 0; pointer-events: none; }
 .guide::before, .guide::after { content: ""; position: absolute; top: -14px; border: 14px solid transparent; }
 .guide::before { left: 0; border-left-color: var(--accent); }
 .guide::after { right: 0; border-right-color: var(--accent); }
-
 #hud { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); background: var(--hud-bg); border: 1px solid var(--hud-line); border-radius: 10px; padding: 5px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; transition: opacity .35s ease; backdrop-filter: blur(6px); }
 #stage.idle #hud { opacity: 0; pointer-events: none; }
 #stage.idle { cursor: none; }
@@ -94,14 +165,14 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 .group { display: inline-flex; align-items: center; gap: 3px; padding: 0 2px; }
 .readout { font-family: var(--f-mono); color: #f3f5f8; min-width: 3.5ch; text-align: center; font-variant-numeric: tabular-nums; font-size: 13px; line-height: 1.1; }
 .readout small { display: block; font-size: 8px; color: #8a96a6; letter-spacing: .08em; font-family: var(--f-body); text-transform: uppercase; }
-#progress { position: absolute; top: 0; left: 0; height: 3px; background: var(--accent); width: 0; padding-top: env(safe-area-inset-top, 0px); }
-#status { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 14px; font-family: var(--f-mono); font-size: 13px; color: var(--stage-dim); display: flex; align-items: center; gap: 8px; transition: opacity .35s; }
+#progress { position: absolute; top: 0; left: 0; height: 3px; background: var(--accent); width: 0; }
+#status { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 14px; font-family: var(--f-mono); font-size: 13px; color: var(--stage-dim); display: flex; align-items: center; gap: 8px; }
 #status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--stage-dim); }
 #stage.rolling #status .dot { background: var(--tally); }
-#toast { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); background: var(--hud-bg); border: 1px solid var(--hud-line); color: #f3f5f8; font-family: var(--f-mono); font-size: 0.85rem; padding: 6px 10px; border-radius: 8px; opacity: 0; transition: opacity .25s; pointer-events: none; writing-mode: horizontal-tb; }
+#toast { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); max-width: min(320px, 45vw); background: var(--hud-bg); border: 1px solid var(--hud-line); color: #f3f5f8; font-family: var(--f-mono); font-size: 0.85rem; padding: 6px 10px; border-radius: 8px; opacity: 0; transition: opacity .25s; pointer-events: none; overflow-wrap: anywhere; }
 #toast.show { opacity: 1; }
 @media (max-width: 520px) { .hb { min-width: 28px; height: 28px; padding: 0 6px; } #playBtn { min-width: 58px; } }
-@media (prefers-reduced-motion: reduce) { #hud, #toast, #status { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #hud, #toast { transition: none; } }
 </style>
 <style>body{margin:0}[hidden]{display:none!important}</style>
 </head>
@@ -109,29 +180,74 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 
 
 <main id="editor">
-  <header class="brand">
-    <span class="tally" aria-hidden="true"></span>
-    <h1>Rolling Prompter</h1>
-    <p>Paste your script, set a speed, and press Start. It scrolls by itself, and the mouse wheel adjusts the speed while it rolls.</p>
+  <header class="topbar">
+    <div class="brand"><span class="tally" aria-hidden="true"></span><h1>Rolling Prompter</h1></div>
+    <div class="folderbar">
+      <span id="folderStatus">Songs are kept in this browser.</span>
+      <button class="ghost small" id="reconnectBtn" type="button" hidden>Reconnect folder</button>
+      <button class="ghost small" id="folderBtn" type="button">Choose songs folder</button>
+      <button class="ghost small" id="forgetBtn" type="button" hidden>Disconnect</button>
+    </div>
   </header>
 
-  <section class="sheet">
-    <label class="cap" for="script">Script</label>
-    <textarea id="script" spellcheck="true"></textarea>
-    <div class="meta">
-      <span><b id="wc">0</b> words</span>
-      <span>about <b id="rt">0:00</b> at a speaking pace of 140 wpm</span>
-      <button class="ghost" id="clearBtn" type="button">Clear</button>
-      <button class="ghost" id="sampleBtn" type="button">Load example</button>
-    </div>
-  </section>
+  <div class="workspace">
+    <aside class="side">
+      <section class="sheet" aria-labelledby="setCap">
+        <div class="set-head">
+          <span class="cap" id="setCap">Tonight's set</span>
+          <span class="cap" id="setCount">0 of 10</span>
+        </div>
+        <ol id="setList"></ol>
+        <div class="set-actions">
+          <button class="ghost" id="newInSetBtn" type="button">+ New song in set</button>
+          <button class="go" id="startBtn" type="button">● Start set</button>
+        </div>
+      </section>
 
-  <section class="sheet">
-    <div class="settings">
-      <div class="field">
-        <label class="cap" for="speed">Scroll speed</label>
-        <div class="row"><input type="range" id="speed" min="1" max="40" step="1"><output id="speedOut" for="speed"></output></div>
+      <section class="sheet songs-sheet" aria-labelledby="listCap">
+        <div class="list-head">
+          <span class="cap" id="listCap">Songs</span>
+          <button class="ghost small" id="newBtn" type="button">+ New song</button>
+        </div>
+        <input type="search" id="search" placeholder="Search songs" aria-label="Search songs" autocomplete="off">
+        <ul id="songList"></ul>
+      </section>
+    </aside>
+
+    <section class="sheet pane" aria-label="Lyrics">
+      <div id="emptyPane" class="empty-pane" hidden>
+        <p>Pick a song from the list, or make a new one.</p>
+        <button class="go" id="newBtn2" type="button">+ New song</button>
       </div>
+      <div id="songPane">
+        <div class="pane-top">
+          <div class="field">
+            <label class="cap" for="songTitle">Title</label>
+            <input type="text" id="songTitle" placeholder="Song title" autocomplete="off">
+          </div>
+          <div class="field">
+            <label class="cap" for="speed">Speed for this song</label>
+            <div class="row"><input type="range" id="speed" min="1" max="40" step="1"><output id="speedOut" for="speed"></output></div>
+          </div>
+        </div>
+        <label class="cap" for="script">Lyrics</label>
+        <textarea id="script" spellcheck="true" placeholder="Type or paste the lyrics. Leave a blank line between verses."></textarea>
+        <div class="meta">
+          <span><b id="wc">0</b> words · <b id="lc">0</b> lines</span>
+          <span id="saveState"></span>
+          <span class="pane-actions">
+            <button class="ghost small" id="setToggleBtn" type="button">+ Add to set</button>
+            <button class="ghost small" id="deleteBtn" type="button">Delete song</button>
+            <button class="go small" id="promptBtn" type="button" title="Open the prompter with just this song">▶ Prompt this song</button>
+          </span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <details class="sheet settings-sheet" id="settingsBox">
+    <summary><span class="cap">Prompter settings</span> <span id="settingsSummary"></span></summary>
+    <div class="settings">
       <div class="field">
         <label class="cap" for="size">Text size</label>
         <div class="row"><input type="range" id="size" min="28" max="160" step="4"><output id="sizeOut" for="size"></output></div>
@@ -141,18 +257,17 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
         <div class="row"><input type="range" id="lineWidth" min="14" max="64" step="2"><output id="widthOut" for="lineWidth"></output></div>
       </div>
       <div class="field">
-        <span class="cap">Display</span>
+        <label class="toggle"><input type="checkbox" id="pauseBetween"> Wait for Play before the next song</label>
         <label class="toggle"><input type="checkbox" id="mirror"> Mirror (for beam-splitter glass)</label>
       </div>
     </div>
-    <div class="actions">
-      <button class="go" id="startBtn" type="button">● Start prompting</button>
-    </div>
-    <div class="keys">
-      On the prompter: <kbd>Space</kbd> or click to play/pause · mouse wheel or <kbd>↑</kbd><kbd>↓</kbd> to change speed while rolling (wheel scrolls normally when paused) ·
-      <kbd>+</kbd><kbd>−</kbd> text size · <kbd>[</kbd><kbd>]</kbd> line width · <kbd>Home</kbd> back to top · <kbd>M</kbd> mirror · <kbd>F</kbd> full screen · <kbd>Esc</kbd> back to editor
-    </div>
-  </section>
+    <details class="keys">
+      <summary>Keyboard shortcuts on the prompter</summary>
+      On the prompter: <kbd>Space</kbd> or click to play/pause · <kbd>↑</kbd><kbd>↓</kbd> or mouse wheel while rolling to change speed ·
+      <kbd>←</kbd><kbd>→</kbd> previous/next song · <kbd>1</kbd>–<kbd>9</kbd>, <kbd>0</kbd> jump to song 1–10 · <kbd>+</kbd><kbd>−</kbd> text size · <kbd>[</kbd><kbd>]</kbd> line width ·
+      <kbd>Home</kbd> start of set · <kbd>M</kbd> mirror · <kbd>F</kbd> full screen · <kbd>Esc</kbd> back to editor
+    </details>
+  </details>
 </main>
 
 <div id="stage" hidden>
@@ -163,11 +278,15 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   <div id="toast" role="status" aria-live="polite"></div>
   <div id="hud">
     <button class="hb" id="exitBtn" type="button" title="Back to editor (Esc)">← Edit</button>
-    <button class="hb" id="restartBtn" type="button" title="Back to top (Home)">⤒ Top</button>
     <button class="hb paused" id="playBtn" type="button" title="Play / pause (Space)">▶ Play</button>
     <span class="group">
+      <button class="hb" id="prevSongBtn" type="button" title="Previous song (←)">⏮</button>
+      <span class="readout"><span id="songHud">1/1</span><small>song</small></span>
+      <button class="hb" id="nextSongBtn" type="button" title="Next song (→)">⏭</button>
+    </span>
+    <span class="group">
       <button class="hb" id="slowBtn" type="button" title="Slower (↓ or wheel up)">−</button>
-      <span class="readout"><span id="speedHud">5</span><small>speed</small></span>
+      <span class="readout"><span id="speedHud">6</span><small>speed</small></span>
       <button class="hb" id="fastBtn" type="button" title="Faster (↑ or wheel down)">+</button>
     </span>
     <span class="group">
@@ -186,103 +305,513 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 <script>
 (() => {
   const $ = id => document.getElementById(id);
+  const MAX_SET = 10;
+  const SETTINGS_FILE = "prompter-settings.json";
+  const DEFAULT_SPEED = 6;
   const store = {
     get(k, d) { try { const v = localStorage.getItem("rp_" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem("rp_" + k, JSON.stringify(v)); } catch {} }
   };
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const cleanTitle = t => (t || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().replace(/^\.+/, "").slice(0, 80);
+  const fileName = t => { const c = cleanTitle(t); return c ? c + ".txt" : ""; };
+  const stem = id => (id || "").replace(/\.txt$/i, "");
+  const newId = () => "L" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true });
 
-  const SAMPLE = `Example script — replace this with your own.
+  // ---------- Saved state ----------
+  // Songs kept in this browser (used when no folder is connected).
+  let localSongs = store.get("library", null);
+  let localSet = store.get("set_local", []);
+  let songSpeeds = store.get("songSpeeds", {});
+  if (!Array.isArray(localSongs)) {
+    // Bring songs over from the earlier 4-tab version, skipping the old example.
+    localSongs = []; localSet = [];
+    (store.get("slots", []) || []).forEach(s => {
+      if (!s || s.example || !(s.lyrics || "").trim()) return;
+      const id = newId();
+      localSongs.push({ id, title: s.title || "", lyrics: s.lyrics, pushed: !!s.file });
+      if (s.speed) songSpeeds[id] = s.speed;
+      localSet.push(id);
+    });
+    store.set("library", localSongs); store.set("set_local", localSet); store.set("songSpeeds", songSpeeds);
+  }
+  const prefs = Object.assign(
+    { size: store.get("size", 72), width: store.get("width", 32), mirror: store.get("mirror", false), pauseBetween: true },
+    store.get("prefs", {})
+  );
+  const saveLocal = () => { store.set("library", localSongs); store.set("set_local", localSet); store.set("songSpeeds", songSpeeds); store.set("prefs", prefs); };
 
-Good evening, everyone, and thank you for being here.
+  // ---------- Folder (File System Access API; Chrome / Edge on a computer) ----------
+  const FS = { supported: typeof window.showDirectoryPicker === "function", dir: null, pending: null, files: [], set: [] };
+  const inFolder = () => !!FS.dir;
+  const idb = (() => {
+    let dbp;
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      const r = indexedDB.open("rolling-prompter", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("kv");
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const run = async (mode, fn) => {
+      const db = await open();
+      return new Promise((res, rej) => {
+        const t = db.transaction("kv", mode); const req = fn(t.objectStore("kv"));
+        t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error);
+      });
+    };
+    return { get: k => run("readonly", s => s.get(k)), set: (k, v) => run("readwrite", s => s.put(v, k)), del: k => run("readwrite", s => s.delete(k)) };
+  })();
+  async function writeText(name, text) {
+    const fh = await FS.dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable(); await w.write(text); await w.close();
+  }
+  async function readText(name) {
+    try { const fh = await FS.dir.getFileHandle(name); return await (await fh.getFile()).text(); } catch { return null; }
+  }
+  async function listFolder() {
+    const out = [];
+    try { for await (const [name, h] of FS.dir.entries()) if (h.kind === "file" && /\.txt$/i.test(name)) out.push(name); }
+    catch (e) { folderError(e); }
+    FS.files = out;
+  }
+  function folderError(e) {
+    $("folderStatus").textContent = `Couldn't use the folder (${(e && (e.message || e.name)) || e}). Your work is still kept in this browser.`;
+  }
 
-Tonight is about the people who made this year possible: the volunteers who showed up early, stayed late, and never asked for credit.
+  // ---------- The two song sources behind one interface ----------
+  // Each song: { id, title }. Folder ids are file names; browser ids are generated.
+  function allSongs() {
+    if (inFolder()) return FS.files.map(f => ({ id: f, title: stem(f) })).sort(byTitle);
+    return localSongs.map(s => ({ id: s.id, title: s.title.trim() || "Untitled" })).sort(byTitle);
+  }
+  const songExists = id => inFolder() ? FS.files.includes(id) : localSongs.some(s => s.id === id);
+  const titleOf = id => inFolder() ? stem(id) : ((localSongs.find(s => s.id === id) || {}).title || "").trim() || "Untitled";
+  async function readLyrics(id) {
+    if (ed.id === id) return ed.lyrics;
+    if (inFolder()) return (await readText(id)) ?? "";
+    return (localSongs.find(s => s.id === id) || {}).lyrics || "";
+  }
+  const speedKey = id => inFolder() ? stem(id) : id;
+  const speedOf = id => songSpeeds[speedKey(id)] || DEFAULT_SPEED;
+  const getSet = () => (inFolder() ? FS.set : localSet);
+  function setSet(arr) {
+    if (inFolder()) FS.set = arr; else localSet = arr;
+    saveLocal(); scheduleSettingsSave();
+  }
 
-When we started, we had twelve members and a borrowed hall. Today we have more than two hundred, and a space we can finally call our own.
+  // ---------- Editor state: the song open on the right ----------
+  // id null = a new song not saved yet.
+  const ed = { open: false, id: null, title: "", lyrics: "", lastSaved: null, speed: DEFAULT_SPEED, dirty: false, error: "", addToSet: false };
+  const state = { speed: DEFAULT_SPEED, playing: false, pos: 0, songs: [], songIdx: 0 };
+  const titleIn = $("songTitle"), script = $("script"), speedIn = $("speed");
 
-So before we go any further, please join me in a round of applause for the team behind it all.
+  async function openSong(id) {
+    await saveEditor();
+    // Read the song first, then switch the editor to it.
+    const lyrics = await readLyrics(id);
+    const title = titleOf(id) === "Untitled" && !inFolder() ? "" : titleOf(id);
+    Object.assign(ed, { open: true, id, title, lyrics, lastSaved: lyrics, speed: speedOf(id), dirty: false, error: "", addToSet: false });
+    renderAll(true);
+  }
+  async function newSong(addToSet) {
+    await saveEditor();
+    Object.assign(ed, { open: true, id: null, title: "", lyrics: "", lastSaved: null, speed: DEFAULT_SPEED, dirty: false, error: "", addToSet: addToSet === true });
+    renderAll(true);
+    titleIn.focus();
+  }
 
-Thank you.`;
+  let saveT;
+  function scheduleSave(ms) { clearTimeout(saveT); saveT = setTimeout(saveEditor, ms); }
+  let saving = Promise.resolve();
+  function saveEditor() { saving = saving.then(doSave, doSave); return saving; }
+  async function doSave() {
+    clearTimeout(saveT);
+    if (!ed.open || !ed.dirty) return;
+    ed.error = "";
+    if (!inFolder()) {
+      if (!ed.id) {
+        if (!ed.title.trim() && !ed.lyrics.trim()) return;
+        ed.id = newId(); localSongs.push({ id: ed.id, title: "", lyrics: "" });
+        songSpeeds[ed.id] = ed.speed;
+      }
+      const s = localSongs.find(x => x.id === ed.id);
+      if (s) { s.title = ed.title; s.lyrics = ed.lyrics; s.pushed = false; }
+      ed.dirty = false; claimSetSpot(); saveLocal(); renderList(); renderSet(); renderSaveState();
+      return;
+    }
+    const name = fileName(ed.title);
+    if (!name) { ed.error = "Add a title to save this song to your folder."; renderSaveState(); return; }
+    if (name !== ed.id && FS.files.some(f => f.toLowerCase() === name.toLowerCase())) {
+      ed.error = `There's already a song called “${stem(name)}”. Use a different title.`; renderSaveState(); return;
+    }
+    try {
+      await writeText(name, ed.lyrics);
+      if (ed.id && ed.id !== name) {
+        // Renamed: remove the old file if it still holds what we last saved, and update references.
+        const old = await readText(ed.id);
+        if (old !== null && old === ed.lastSaved) { try { await FS.dir.removeEntry(ed.id); } catch {} }
+        FS.set = FS.set.map(x => x === ed.id ? name : x);
+        if (songSpeeds[stem(ed.id)] != null) { songSpeeds[stem(name)] = songSpeeds[stem(ed.id)]; delete songSpeeds[stem(ed.id)]; }
+      }
+      songSpeeds[stem(name)] = ed.speed;
+      ed.id = name; ed.lastSaved = ed.lyrics; ed.dirty = false;
+      await listFolder();
+      claimSetSpot();
+      saveLocal(); scheduleSettingsSave();
+      renderList(); renderSet(); renderFolderUI();
+    } catch (e) { folderError(e); }
+    renderSaveState();
+  }
 
-  const state = {
-    speed: store.get("speed", 6),
-    size: store.get("size", 72),
-    mirror: store.get("mirror", false),
-    width: store.get("width", 32),
-    playing: false,
-    pos: 0
+  titleIn.addEventListener("input", () => { ed.title = titleIn.value; ed.dirty = true; renderSaveState(); scheduleSave(1500); });
+  titleIn.addEventListener("change", () => saveEditor());
+  script.addEventListener("input", () => { ed.lyrics = script.value; ed.dirty = true; updateMeta(); renderSaveState(); $("promptBtn").disabled = !ed.lyrics.trim(); scheduleSave(800); });
+  window.addEventListener("beforeunload", () => { if (ed.dirty) doSave(); });
+
+  // Delete with an in-page confirm step.
+  let deleteArmed = false, deleteT;
+  $("deleteBtn").onclick = async () => {
+    const btn = $("deleteBtn");
+    if (!ed.id) { Object.assign(ed, { open: false, dirty: false }); renderAll(); return; }
+    if (!deleteArmed) {
+      deleteArmed = true; btn.textContent = inFolder() ? "Click again to delete the file" : "Click again to delete";
+      btn.classList.add("danger");
+      clearTimeout(deleteT); deleteT = setTimeout(() => { deleteArmed = false; renderPaneButtons(); }, 4000);
+      return;
+    }
+    deleteArmed = false; clearTimeout(deleteT);
+    const id = ed.id;
+    try {
+      if (inFolder()) { await FS.dir.removeEntry(id); await listFolder(); delete songSpeeds[stem(id)]; }
+      else { localSongs = localSongs.filter(s => s.id !== id); delete songSpeeds[id]; }
+    } catch (e) { folderError(e); return; }
+    setSet(getSet().filter(x => x !== id));
+    Object.assign(ed, { open: false, id: null, dirty: false });
+    saveLocal(); renderAll(); renderFolderUI();
   };
 
-  // ---------- Editor ----------
-  const script = $("script");
-  script.value = store.get("text", SAMPLE);
-  const updateMeta = () => {
-    const words = (script.value.trim().match(/\S+/g) || []).length;
-    $("wc").textContent = words;
-    const secs = Math.round(words / 140 * 60);
-    $("rt").textContent = Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0");
+  $("setToggleBtn").onclick = async () => {
+    if (!ed.id) await saveEditor();
+    if (!ed.id) return;
+    const set = getSet();
+    if (set.includes(ed.id)) setSet(set.filter(x => x !== ed.id));
+    else if (set.length < MAX_SET) setSet([...set, ed.id]);
+    renderSet(); renderList(); renderPaneButtons();
   };
-  script.addEventListener("input", () => { store.set("text", script.value); updateMeta(); });
-  updateMeta();
-  $("clearBtn").onclick = () => { script.value = ""; store.set("text", ""); updateMeta(); script.focus(); };
-  $("sampleBtn").onclick = () => { script.value = SAMPLE; store.set("text", SAMPLE); updateMeta(); };
+  // A song started from the set goes into the set as soon as it's saved.
+  function claimSetSpot() {
+    if (!ed.addToSet || !ed.id) return;
+    ed.addToSet = false;
+    const set = getSet();
+    if (!set.includes(ed.id) && set.length < MAX_SET) setSet([...set, ed.id]);
+  }
+  $("newBtn").onclick = () => newSong(false);
+  $("newBtn2").onclick = () => newSong(false);
+  $("newInSetBtn").onclick = () => newSong(true);
 
-  const speedIn = $("speed"), sizeIn = $("size");
-  const syncControls = () => {
-    speedIn.value = state.speed; $("speedOut").textContent = state.speed;
-    sizeIn.value = state.size; $("sizeOut").textContent = state.size;
-    $("mirror").checked = state.mirror;
-    $("lineWidth").value = state.width; $("widthOut").textContent = state.width >= 64 ? "Full" : state.width;
+  // ---------- Rendering ----------
+  function updateMeta() {
+    const t = ed.lyrics.trim();
+    $("wc").textContent = (t.match(/\S+/g) || []).length;
+    $("lc").textContent = t ? t.split(/\n/).filter(l => l.trim()).length : 0;
+  }
+  function renderSaveState() {
+    let t = "";
+    if (ed.error) t = ed.error;
+    else if (!ed.id && !ed.dirty) t = (ed.addToSet ? "New song for the set. " : "New song. ") + (inFolder() ? "It's saved to your folder once it has a title." : "It's saved as you type.");
+    else if (ed.dirty) t = "Saving…";
+    else t = inFolder() ? `Saved to folder as “${ed.id}”` : "Saved in this browser";
+    $("saveState").textContent = t;
+  }
+  function renderPaneButtons() {
+    const set = getSet();
+    const inSet = ed.id && set.includes(ed.id);
+    const b = $("setToggleBtn");
+    b.textContent = inSet ? `Remove from set (#${set.indexOf(ed.id) + 1})` : "+ Add to set";
+    b.disabled = !inSet && set.length >= MAX_SET;
+    b.title = b.disabled ? `The set already has ${MAX_SET} songs` : "";
+    $("promptBtn").disabled = !ed.lyrics.trim();
+    const d = $("deleteBtn");
+    d.textContent = ed.id ? "Delete song" : "Discard";
+    d.classList.remove("danger");
+  }
+  function renderPane(force) {
+    $("emptyPane").hidden = ed.open;
+    $("songPane").hidden = !ed.open;
+    if (!ed.open) return;
+    // Don't disturb a box mid-typing, unless a different song was just opened.
+    if (force || document.activeElement !== titleIn) titleIn.value = ed.title;
+    if (force || document.activeElement !== script) script.value = ed.lyrics;
+    speedIn.value = ed.speed; $("speedOut").textContent = ed.speed;
+    updateMeta(); renderSaveState(); renderPaneButtons();
+  }
+  function renderSet() {
+    const set = getSet().filter(songExists);
+    const ol = $("setList"); ol.innerHTML = "";
+    $("setCount").textContent = `${set.length} of ${MAX_SET}`;
+    if (!set.length) {
+      const li = document.createElement("li"); li.className = "set-empty";
+      li.textContent = "No songs in the set yet. Use + next to a song in the list, or add a new one below.";
+      ol.append(li);
+    }
+    set.forEach((id, i) => {
+      const li = document.createElement("li");
+      if (id === ed.id) li.classList.add("sel");
+      const n = document.createElement("span"); n.className = "num"; n.textContent = i + 1;
+      const t = document.createElement("button"); t.type = "button"; t.className = "set-title"; t.textContent = titleOf(id);
+      t.onclick = () => openSong(id);
+      const mk = (txt, title, fn, dis) => { const b = document.createElement("button"); b.type = "button"; b.className = "icon"; b.textContent = txt; b.title = title; b.setAttribute("aria-label", title); b.disabled = !!dis; b.onclick = fn; return b; };
+      const move = d => { const a = [...set]; [a[i], a[i + d]] = [a[i + d], a[i]]; setSet(a); renderSet(); renderList(); renderPaneButtons(); };
+      li.append(n, t,
+        mk("▶", `Start the set from song ${i + 1}`, () => startSet(i)),
+        mk("↑", "Move up", () => move(-1), i === 0),
+        mk("↓", "Move down", () => move(1), i === set.length - 1),
+        mk("✕", "Remove from set", () => { setSet(set.filter(x => x !== id)); renderSet(); renderList(); renderPaneButtons(); }));
+      ol.append(li);
+    });
+    const nb = $("newInSetBtn");
+    nb.disabled = set.length >= MAX_SET;
+    nb.title = nb.disabled ? `The set already has ${MAX_SET} songs` : "";
+    const sb = $("startBtn");
+    sb.disabled = !set.length;
+    sb.textContent = set.length ? `● Start set (${set.length})` : "● Start set";
+    sb.title = set.length ? `Start the set of ${set.length} song${set.length === 1 ? "" : "s"}` : "";
+  }
+  let searchT;
+  $("search").addEventListener("input", () => { clearTimeout(searchT); searchT = setTimeout(renderList, 100); });
+  function renderList() {
+    const songs = allSongs();
+    const set = getSet();
+    $("listCap").textContent = `Songs (${songs.length})`;
+    const q = $("search").value.trim().toLowerCase();
+    const shown = q ? songs.filter(s => s.title.toLowerCase().includes(q)) : songs;
+    const ul = $("songList"); ul.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    if (!shown.length) {
+      const li = document.createElement("li"); li.className = "list-empty";
+      li.textContent = songs.length ? "No songs match that search." : "No songs yet. Click “+ New song” to add one.";
+      frag.append(li);
+    }
+    let letter = null;
+    shown.forEach(s => {
+      const first = s.title.charAt(0).toUpperCase();
+      const L = /[A-Z]/.test(first) ? first : "#";
+      if (L !== letter) {
+        letter = L;
+        const h = document.createElement("li"); h.className = "letter"; h.textContent = L; h.setAttribute("aria-hidden", "true");
+        frag.append(h);
+      }
+      const li = document.createElement("li"); li.className = "row";
+      if (s.id === ed.id) li.classList.add("sel");
+      const b = document.createElement("button"); b.type = "button"; b.className = "pick"; b.textContent = s.title;
+      b.onclick = () => openSong(s.id);
+      li.append(b);
+      const pos = set.indexOf(s.id);
+      if (pos >= 0) {
+        const tag = document.createElement("span"); tag.className = "inset"; tag.textContent = "Set #" + (pos + 1); li.append(tag);
+      } else {
+        const add = document.createElement("button"); add.type = "button"; add.className = "icon"; add.textContent = "+";
+        add.title = set.length >= MAX_SET ? `The set already has ${MAX_SET} songs` : "Add to tonight's set";
+        add.setAttribute("aria-label", `Add ${s.title} to tonight's set`);
+        add.disabled = set.length >= MAX_SET;
+        add.onclick = () => { setSet([...getSet(), s.id]); renderSet(); renderList(); renderPaneButtons(); };
+        li.append(add);
+      }
+      frag.append(li);
+    });
+    ul.append(frag);
+  }
+  function renderFolderUI() {
+    const st = $("folderStatus");
+    if (!FS.supported) {
+      st.textContent = "Songs are kept in this browser. Saving to a folder works in Chrome or Edge on a computer.";
+      ["folderBtn", "reconnectBtn", "forgetBtn"].forEach(id => $(id).hidden = true);
+      return;
+    }
+    $("folderBtn").textContent = FS.dir ? "Change folder" : "Choose songs folder";
+    $("reconnectBtn").hidden = !FS.pending;
+    if (FS.pending) $("reconnectBtn").textContent = `Reconnect “${FS.pending.name}”`;
+    $("forgetBtn").hidden = !FS.dir && !FS.pending;
+    if (FS.dir) st.textContent = `Saving to folder “${FS.dir.name}”`;
+    else if (FS.pending) st.textContent = `Your folder “${FS.pending.name}” needs permission again.`;
+    else st.textContent = "Songs are kept in this browser. Choose a folder to save them as files.";
+  }
+  function settingsSummaryText() {
+    return `Text ${prefs.size}px · width ${prefs.width >= 64 ? "full" : prefs.width} · ${prefs.pauseBetween ? "waits before each song" : "next song starts by itself"}${prefs.mirror ? " · mirrored" : ""}`;
+  }
+  function syncSettings() {
+    $("settingsSummary").textContent = settingsSummaryText();
+    $("size").value = prefs.size; $("sizeOut").textContent = prefs.size;
+    $("lineWidth").value = prefs.width; $("widthOut").textContent = prefs.width >= 64 ? "Full" : prefs.width;
+    $("mirror").checked = prefs.mirror; $("pauseBetween").checked = prefs.pauseBetween;
     $("speedHud").textContent = state.speed;
-    $("mirrorBtn").classList.toggle("on", state.mirror);
+    $("mirrorBtn").classList.toggle("on", prefs.mirror);
+  }
+  function renderAll(force) { renderPane(force); renderSet(); renderList(); renderFolderUI(); syncSettings(); }
+
+  // ---------- Folder settings file ----------
+  let settingsT;
+  function scheduleSettingsSave() { saveLocal(); clearTimeout(settingsT); settingsT = setTimeout(saveSettingsFile, 600); }
+  async function saveSettingsFile() {
+    if (!FS.dir) return;
+    const data = {
+      app: "Rolling Prompter", version: 2,
+      textSize: prefs.size, lineWidth: prefs.width, mirror: prefs.mirror,
+      pauseBetween: prefs.pauseBetween,
+      setlist: FS.set.filter(f => FS.files.includes(f)).map(stem),
+      songSpeeds: Object.fromEntries(Object.entries(songSpeeds).filter(([k]) => FS.files.includes(k + ".txt")))
+    };
+    try { await writeText(SETTINGS_FILE, JSON.stringify(data, null, 2)); } catch (e) { folderError(e); }
+  }
+  async function useFolder(h) {
+    await saveEditor();
+    FS.dir = h; FS.pending = null;
+    await listFolder();
+    // Copy songs that only exist in this browser into the folder (once), so nothing is left behind.
+    for (const s of localSongs) {
+      if (s.pushed || !s.lyrics.trim()) continue;
+      const name = fileName(s.title) || fileName("Untitled " + s.id.slice(-4));
+      if (!FS.files.includes(name)) {
+        try { await writeText(name, s.lyrics); FS.files.push(name); } catch (e) { folderError(e); continue; }
+        if (songSpeeds[s.id] != null && songSpeeds[stem(name)] == null) songSpeeds[stem(name)] = songSpeeds[s.id];
+      }
+      s.pushed = true; s.file = name;
+    }
+    const raw = await readText(SETTINGS_FILE);
+    let cfg = null; try { cfg = raw && JSON.parse(raw); } catch {}
+    if (cfg) {
+      if (typeof cfg.textSize === "number") prefs.size = clamp(cfg.textSize, 28, 160);
+      if (typeof cfg.lineWidth === "number") prefs.width = clamp(cfg.lineWidth, 14, 64);
+      ["mirror", "pauseBetween"].forEach(k => { if (typeof cfg[k] === "boolean") prefs[k] = cfg[k]; });
+      if (cfg.songSpeeds && typeof cfg.songSpeeds === "object") Object.assign(songSpeeds, cfg.songSpeeds);
+      FS.set = (Array.isArray(cfg.setlist) ? cfg.setlist : []).map(t => t + ".txt").filter(f => FS.files.includes(f)).slice(0, MAX_SET);
+    } else {
+      // New folder: carry tonight's set over from this browser.
+      FS.set = localSet.map(id => (localSongs.find(s => s.id === id) || {}).file).filter(Boolean).slice(0, MAX_SET);
+    }
+    saveLocal(); await saveSettingsFile();
+    // Keep the open song open if it came across.
+    if (ed.open && ed.id && !FS.files.includes(ed.id)) {
+      const s = localSongs.find(x => x.id === ed.id);
+      if (s && s.file) ed.id = s.file; else Object.assign(ed, { open: false, id: null });
+    }
+    if (!ed.open) { const first = FS.set[0] || allSongs()[0]?.id; if (first) await openSong(first); }
+    renderAll();
+  }
+  $("folderBtn").onclick = async () => {
+    try {
+      const h = await window.showDirectoryPicker({ id: "prompter-songs", mode: "readwrite", startIn: "documents" });
+      try { await idb.set("dir", h); } catch {}
+      await useFolder(h);
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      $("folderStatus").textContent = (e && e.name === "SecurityError")
+        ? "This page isn't allowed to open folders. Open your prompter site in Chrome or Edge to use a folder."
+        : `Couldn't open that folder (${(e && e.message) || e}).`;
+    }
   };
+  $("reconnectBtn").onclick = async () => {
+    if (!FS.pending) return;
+    try { if ((await FS.pending.requestPermission({ mode: "readwrite" })) === "granted") await useFolder(FS.pending); }
+    catch (e) { folderError(e); }
+  };
+  $("forgetBtn").onclick = async () => {
+    await saveEditor();
+    FS.dir = null; FS.pending = null; FS.files = []; FS.set = [];
+    try { await idb.del("dir"); } catch {}
+    Object.assign(ed, { open: false, id: null, dirty: false });
+    renderAll();
+  };
+  async function initFolder() {
+    if (!FS.supported) return;
+    try {
+      const h = await idb.get("dir");
+      if (!h) return;
+      if ((await h.queryPermission({ mode: "readwrite" })) === "granted") await useFolder(h);
+      else { FS.pending = h; renderFolderUI(); }
+    } catch {}
+  }
+
+  // ---------- Settings controls ----------
+  $("settingsBox").open = !!store.get("settingsOpen", false);
+  $("settingsBox").addEventListener("toggle", () => store.set("settingsOpen", $("settingsBox").open));
   speedIn.oninput = () => setSpeed(+speedIn.value, true);
-  sizeIn.oninput = () => setSize(+sizeIn.value, true);
-  $("mirror").onchange = e => setMirror(e.target.checked, true);
+  $("size").oninput = e => setSize(+e.target.value, true);
   $("lineWidth").oninput = e => setWidth(+e.target.value, true);
-  syncControls();
+  $("mirror").onchange = e => setMirror(e.target.checked, true);
+  $("pauseBetween").onchange = e => { prefs.pauseBetween = e.target.checked; scheduleSettingsSave(); };
 
   // ---------- Stage ----------
   const stage = $("stage"), scroller = $("scroller"), text = $("text");
   const pxPerSec = () => state.speed * 9;   // speed 1 = 9 px/s … 40 = 360 px/s
-
+  const GUIDE = () => scroller.clientHeight * 0.38;
   let toastT;
   const toast = msg => {
     if (stage.hidden) return;
     const t = $("toast"); t.textContent = msg; t.classList.add("show");
-    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 700);
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1100);
   };
 
   function setSpeed(v, quiet) {
-    state.speed = Math.max(1, Math.min(40, Math.round(v)));
-    store.set("speed", state.speed); syncControls();
-    if (!quiet) toast("Speed " + state.speed);
+    v = clamp(Math.round(v), 1, 40);
+    let id;
+    if (stage.hidden) { ed.speed = v; id = ed.id; $("speedOut").textContent = v; }
+    else { state.speed = v; const s = state.songs[state.songIdx]; if (s) { s.speed = v; id = s.id; if (id === ed.id) ed.speed = v; } }
+    if (id) { songSpeeds[speedKey(id)] = v; scheduleSettingsSave(); }
+    syncSettings();
+    if (!quiet) toast("Speed " + v);
   }
   function setSize(v, quiet) {
     const max = scroller.scrollHeight - scroller.clientHeight;
     const ratio = max > 0 ? scroller.scrollTop / max : 0;
-    state.size = Math.max(28, Math.min(160, v));
-    store.set("size", state.size); syncControls();
-    text.style.fontSize = state.size + "px";
-    if (!stage.hidden) {
-      const nmax = scroller.scrollHeight - scroller.clientHeight;
-      state.pos = ratio * nmax; scroller.scrollTop = state.pos;
-    }
-    if (!quiet) toast("Text " + state.size + "px");
+    prefs.size = clamp(v, 28, 160);
+    scheduleSettingsSave(); syncSettings();
+    text.style.fontSize = prefs.size + "px";
+    if (!stage.hidden) { state.pos = ratio * (scroller.scrollHeight - scroller.clientHeight); scroller.scrollTop = state.pos; }
+    if (!quiet) toast("Text " + prefs.size + "px");
   }
   function setWidth(v, quiet) {
-    state.width = Math.max(14, Math.min(64, Math.round(v / 2) * 2));
-    store.set("width", state.width); syncControls();
-    applyWidth();
-    if (!quiet) toast(state.width >= 64 ? "Width full" : "Width " + state.width);
+    prefs.width = clamp(Math.round(v / 2) * 2, 14, 64);
+    scheduleSettingsSave(); syncSettings(); applyWidth();
+    if (!quiet) toast(prefs.width >= 64 ? "Width full" : "Width " + prefs.width);
   }
-  function applyWidth() {
-    text.classList.toggle("wide", state.width >= 64);
-    text.style.setProperty("--line-ch", state.width + "ch");
-  }
+  function applyWidth() { text.classList.toggle("wide", prefs.width >= 64); text.style.setProperty("--line-ch", prefs.width + "ch"); }
   function setMirror(v, quiet) {
-    state.mirror = v; store.set("mirror", v); syncControls();
+    prefs.mirror = v; scheduleSettingsSave(); syncSettings();
     stage.classList.toggle("mirror", v);
     if (!quiet) toast(v ? "Mirrored" : "Normal");
+  }
+
+  // Each song gets its own fresh prompter screen: only the current song's words are shown, starting from the top.
+  function showSong(k) {
+    text.innerHTML = "";
+    if (!state.songs.length) {
+      text.textContent = "No songs in the set yet. Press Esc to go back and add one.";
+      state.songIdx = 0; $("songHud").textContent = "0/0"; return;
+    }
+    k = clamp(k, 0, state.songs.length - 1);
+    state.songIdx = k;
+    const l = document.createElement("div"); l.className = "lyrics";
+    l.textContent = state.songs[k].lyrics.trim() || " ";
+    text.append(l);
+    state.pos = 0; scroller.scrollTop = 0;
+    state.speed = state.songs[k].speed; syncSettings();
+    $("songHud").textContent = `${k + 1}/${state.songs.length}`;
+    updateProgress();
+  }
+  function jumpTo(k, quiet) {
+    if (!state.songs.length) return;
+    showSong(k);
+    if (!quiet) toast(`Song ${state.songIdx + 1} of ${state.songs.length}`);
+  }
+  function prevSong() {
+    if (!state.songs.length) return;
+    // First press goes back to the top of this song; a second press goes to the song before.
+    if (scroller.scrollTop > 40) jumpTo(state.songIdx); else jumpTo(state.songIdx - 1);
+  }
+  function nextSong() {
+    if (state.songIdx + 1 < state.songs.length) jumpTo(state.songIdx + 1);
+    else toast("This is the last song");
   }
 
   let wakeLock = null;
@@ -295,24 +824,27 @@ Thank you.`;
     const dt = last ? Math.min((t - last) / 1000, 0.1) : 0;
     last = t;
     const max = scroller.scrollHeight - scroller.clientHeight;
-    state.pos = Math.min(max, state.pos + pxPerSec() * dt);
-    selfScroll = true;
-    scroller.scrollTop = state.pos;
-    updateProgress();
-    if (state.pos >= max - 0.5) { pause(); toast("End of script"); return; }
+    const next = Math.min(max, state.pos + pxPerSec() * dt);
+    state.pos = next; scroller.scrollTop = next; updateProgress();
+    if (next >= max - 0.5) {
+      if (state.songIdx + 1 >= state.songs.length) { pause(); toast("End of set"); return; }
+      showSong(state.songIdx + 1);
+      if (prefs.pauseBetween) { pause(); toast(`Song ${state.songIdx + 1} of ${state.songs.length} ready`); return; }
+      last = 0;
+      toast(`Song ${state.songIdx + 1} of ${state.songs.length}`);
+    }
     raf = requestAnimationFrame(tick);
   }
   function play() {
-    const max = scroller.scrollHeight - scroller.clientHeight;
-    if (state.pos >= max - 1) { state.pos = 0; scroller.scrollTop = 0; }
-    state.pos = scroller.scrollTop;
-    state.playing = true; last = 0;
+    if (!state.songs.length) return;
+    if (scroller.scrollTop >= scroller.scrollHeight - scroller.clientHeight - 1) {
+      if (state.songIdx + 1 < state.songs.length) showSong(state.songIdx + 1); else { scroller.scrollTop = 0; }
+    }
+    state.pos = scroller.scrollTop; state.playing = true; last = 0;
     stage.classList.add("rolling");
     const b = $("playBtn"); b.textContent = "❚❚ Pause"; b.classList.remove("paused");
     $("statusTxt").textContent = "ROLLING";
-    lockScreen();
-    raf = requestAnimationFrame(tick);
-    armIdle();
+    lockScreen(); raf = requestAnimationFrame(tick); armIdle();
   }
   function pause() {
     state.playing = false; cancelAnimationFrame(raf);
@@ -322,104 +854,104 @@ Thank you.`;
     unlockScreen();
   }
   const toggle = () => state.playing ? pause() : play();
-
   function updateProgress() {
     const max = scroller.scrollHeight - scroller.clientHeight;
     $("progress").style.width = (max > 0 ? scroller.scrollTop / max * 100 : 0) + "%";
   }
-
-  // When paused, manual scrolling (wheel, trackpad, touch, drag) moves the text normally.
-  let selfScroll = false;
-  scroller.addEventListener("scroll", () => {
-    if (selfScroll) { selfScroll = false; } else { state.pos = scroller.scrollTop; }
-    updateProgress();
-  });
-
-  // Wheel: while rolling it changes speed; while paused it scrolls like normal.
+  scroller.addEventListener("scroll", () => { if (!state.playing) state.pos = scroller.scrollTop; updateProgress(); });
   let wheelAcc = 0, wheelT = 0;
   scroller.addEventListener("wheel", e => {
     if (!state.playing) return;
     e.preventDefault();
     wheelAcc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
     const now = performance.now();
-    if (Math.abs(wheelAcc) >= 50 || (now - wheelT > 120 && Math.abs(wheelAcc) > 4)) {
-      setSpeed(state.speed + Math.sign(wheelAcc));
-      wheelAcc = 0; wheelT = now;
-    }
+    if (Math.abs(wheelAcc) >= 50 || (now - wheelT > 120 && Math.abs(wheelAcc) > 4)) { setSpeed(state.speed + Math.sign(wheelAcc)); wheelAcc = 0; wheelT = now; }
   }, { passive: false });
-
-  // Click on the text toggles play (ignore drags on touch / text selection).
   let downY = null;
   scroller.addEventListener("pointerdown", e => { downY = e.clientY; });
-  scroller.addEventListener("pointerup", e => {
-    if (downY !== null && Math.abs(e.clientY - downY) < 6) toggle();
-    downY = null;
-  });
-
-  // Hide the control bar while rolling and the mouse is still.
+  scroller.addEventListener("pointerup", e => { if (downY !== null && Math.abs(e.clientY - downY) < 6) toggle(); downY = null; });
   let idleT;
-  function armIdle() {
-    stage.classList.remove("idle"); clearTimeout(idleT);
-    if (state.playing) idleT = setTimeout(() => stage.classList.add("idle"), 2500);
-  }
+  function armIdle() { stage.classList.remove("idle"); clearTimeout(idleT); if (state.playing) idleT = setTimeout(() => stage.classList.add("idle"), 2500); }
   stage.addEventListener("pointermove", armIdle);
 
-  function openStage() {
-    const raw = script.value.trim() ? script.value : "(Your script is empty. Press Esc to go back and paste one.)";
-    text.textContent = raw;
+  async function startSet(fromIndex) {
+    await saveEditor();
+    const set = getSet().filter(songExists);
+    state.songs = [];
+    for (const id of set) state.songs.push({ id, title: titleOf(id), lyrics: await readLyrics(id), speed: speedOf(id) });
+    openStage(fromIndex);
+  }
+  // Prompt just the song that's open, set or no set.
+  async function startSingle() {
+    if (!ed.open || !ed.lyrics.trim()) return;
+    await saveEditor();
+    state.songs = [{ id: ed.id, title: ed.title.trim() || "Untitled", lyrics: ed.lyrics, speed: ed.speed }];
+    openStage(0);
+  }
+  function openStage(fromIndex) {
+    text.style.fontSize = prefs.size + "px";
     applyWidth();
-    text.style.fontSize = state.size + "px";
-    stage.classList.toggle("mirror", state.mirror);
-    document.getElementById("editor").hidden = true;
-    stage.hidden = false;
-    state.pos = 0; scroller.scrollTop = 0; updateProgress();
+    stage.classList.toggle("mirror", prefs.mirror);
+    $("editor").hidden = true; stage.hidden = false;
     pause();
+    showSong(fromIndex || 0);
     $("playBtn").focus();
   }
-  function closeStage() {
+  async function closeStage() {
     pause();
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    stage.hidden = true; document.getElementById("editor").hidden = false;
+    stage.hidden = true; $("editor").hidden = false;
+    const s = state.songs[state.songIdx];
+    if (s && s.id !== ed.id) await openSong(s.id); else { if (s) ed.speed = s.speed; renderAll(); }
   }
   async function fullscreen() {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await stage.requestFullscreen();
-    } catch { toast("Full screen isn't available here"); }
+    try { if (document.fullscreenElement) await document.exitFullscreen(); else await stage.requestFullscreen(); }
+    catch { toast("Full screen isn't available here"); }
   }
 
-  $("startBtn").onclick = openStage;
+  $("startBtn").onclick = () => startSet(0);
+  $("promptBtn").onclick = startSingle;
   $("exitBtn").onclick = closeStage;
-  $("restartBtn").onclick = () => { state.pos = 0; scroller.scrollTop = 0; toast("Top"); };
   $("playBtn").onclick = toggle;
+  $("prevSongBtn").onclick = prevSong;
+  $("nextSongBtn").onclick = nextSong;
   $("slowBtn").onclick = () => setSpeed(state.speed - 1);
   $("fastBtn").onclick = () => setSpeed(state.speed + 1);
-  $("smallBtn").onclick = () => setSize(state.size - 8);
-  $("bigBtn").onclick = () => setSize(state.size + 8);
-  $("narrowBtn").onclick = () => setWidth(state.width - 2);
-  $("widenBtn").onclick = () => setWidth(state.width + 2);
-  $("mirrorBtn").onclick = () => setMirror(!state.mirror);
+  $("smallBtn").onclick = () => setSize(prefs.size - 8);
+  $("bigBtn").onclick = () => setSize(prefs.size + 8);
+  $("narrowBtn").onclick = () => setWidth(prefs.width - 2);
+  $("widenBtn").onclick = () => setWidth(prefs.width + 2);
+  $("mirrorBtn").onclick = () => setMirror(!prefs.mirror);
   $("fsBtn").onclick = fullscreen;
-
   document.addEventListener("keydown", e => {
     if (stage.hidden) return;
     const k = e.key;
-    if (k === " " || k === "k") { e.preventDefault(); if (document.activeElement?.classList.contains("hb") && k === " ") { document.activeElement.blur(); } toggle(); }
+    if (k === " " || k === "k") { e.preventDefault(); if (document.activeElement?.classList.contains("hb")) document.activeElement.blur(); toggle(); }
     else if (k === "ArrowUp") { e.preventDefault(); setSpeed(state.speed + 1); }
     else if (k === "ArrowDown") { e.preventDefault(); setSpeed(state.speed - 1); }
-    else if (k === "+" || k === "=") { setSize(state.size + 8); }
-    else if (k === "-" || k === "_") { setSize(state.size - 8); }
-    else if (k === "Home") { e.preventDefault(); state.pos = 0; scroller.scrollTop = 0; }
+    else if (k === "ArrowLeft") { e.preventDefault(); prevSong(); }
+    else if (k === "ArrowRight") { e.preventDefault(); nextSong(); }
+    else if (/^[0-9]$/.test(k)) { const n = k === "0" ? 10 : +k; if (n <= state.songs.length) jumpTo(n - 1); }
+    else if (k === "+" || k === "=") setSize(prefs.size + 8);
+    else if (k === "-" || k === "_") setSize(prefs.size - 8);
+    else if (k === "[") setWidth(prefs.width - 2);
+    else if (k === "]") setWidth(prefs.width + 2);
+    else if (k === "Home") { e.preventDefault(); jumpTo(0, true); }
     else if (k === "PageDown") { e.preventDefault(); state.pos += scroller.clientHeight * 0.5; scroller.scrollTop = state.pos; }
     else if (k === "PageUp") { e.preventDefault(); state.pos -= scroller.clientHeight * 0.5; scroller.scrollTop = state.pos; }
-    else if (k === "[") setWidth(state.width - 2);
-    else if (k === "]") setWidth(state.width + 2);
-    else if (k === "m" || k === "M") setMirror(!state.mirror);
+    else if (k === "m" || k === "M") setMirror(!prefs.mirror);
     else if (k === "f" || k === "F") fullscreen();
     else if (k === "Escape" && !document.fullscreenElement) closeStage();
     armIdle();
   });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.playing) lockScreen(); });
+
+  // ---------- Start ----------
+  (async () => {
+    const first = localSet.find(songExists) || allSongs()[0]?.id;
+    if (first) await openSong(first); else renderAll();
+    await initFolder();
+  })();
 })();
 </script>
 
