@@ -136,6 +136,29 @@ button:disabled { cursor: default; }
   #songList { min-height: 120px; }
 }
 
+
+/* Set / songs tabs (one panel that gets the whole left column) */
+.side-tabs { gap: 12px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.seg-btn { background: transparent; border: 0; border-radius: 7px; padding: 8px 10px; font-weight: 700; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; min-width: 0; }
+.seg-btn[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / .08), inset 0 -2px 0 var(--accent); }
+.seg-btn .count { font-family: var(--f-mono); font-size: .75rem; font-weight: 500; padding: 1px 7px; border-radius: 999px; background: var(--line); color: var(--fg); }
+.seg-btn .count.bump { animation: bump .5s ease; }
+@keyframes bump { 30% { transform: scale(1.35); background: var(--accent); color: #18202b; } }
+@media (prefers-reduced-motion: reduce) { .seg-btn .count.bump { animation: none; } }
+.tab-panel { display: grid; gap: 10px; min-height: 0; align-content: start; }
+.list-head input { flex: 1; min-width: 0; }
+#setList { max-height: none; }
+#songList { max-height: min(62vh, 640px); }
+@media (min-width: 781px) and (min-height: 600px) {
+  .side { grid-template-rows: minmax(0, 1fr); }
+  .side-tabs { min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
+  .set-panel { grid-template-rows: minmax(0, auto) auto; }
+  .songs-panel { grid-template-rows: auto minmax(0, 1fr); }
+  #setList { min-height: 0; overflow: auto; }
+  #songList { max-height: none; min-height: 0; }
+}
+
 /* Prompter settings */
 .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
 .toggle { display: flex; align-items: center; gap: 8px; }
@@ -192,25 +215,26 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 
   <div class="workspace">
     <aside class="side">
-      <section class="sheet" aria-labelledby="setCap">
-        <div class="set-head">
-          <span class="cap" id="setCap">Tonight's set</span>
-          <span class="cap" id="setCount">0 of 10</span>
+      <section class="sheet side-tabs">
+        <div class="seg" role="tablist" aria-label="Set and songs">
+          <button class="seg-btn" role="tab" id="tabSet" aria-controls="panelSet" type="button">Tonight's set <span class="count" id="setCount">0/10</span></button>
+          <button class="seg-btn" role="tab" id="tabSongs" aria-controls="panelSongs" type="button">All songs <span class="count" id="listCap">0</span></button>
         </div>
-        <ol id="setList"></ol>
-        <div class="set-actions">
-          <button class="ghost" id="newInSetBtn" type="button">+ New song in set</button>
-          <button class="go" id="startBtn" type="button">● Start set</button>
-        </div>
-      </section>
 
-      <section class="sheet songs-sheet" aria-labelledby="listCap">
-        <div class="list-head">
-          <span class="cap" id="listCap">Songs</span>
-          <button class="ghost small" id="newBtn" type="button">+ New song</button>
+        <div class="tab-panel set-panel" id="panelSet" role="tabpanel" aria-labelledby="tabSet">
+          <ol id="setList"></ol>
+          <button class="ghost" id="newInSetBtn" type="button">+ New song in set</button>
         </div>
-        <input type="search" id="search" placeholder="Search songs" aria-label="Search songs" autocomplete="off">
-        <ul id="songList"></ul>
+
+        <div class="tab-panel songs-panel" id="panelSongs" role="tabpanel" aria-labelledby="tabSongs" hidden>
+          <div class="list-head">
+            <input type="search" id="search" placeholder="Search songs" aria-label="Search songs" autocomplete="off">
+            <button class="ghost small" id="newBtn" type="button">+ New</button>
+          </div>
+          <ul id="songList"></ul>
+        </div>
+
+        <button class="go" id="startBtn" type="button">● Start set</button>
       </section>
     </aside>
 
@@ -548,10 +572,11 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   function renderSet() {
     const set = getSet().filter(songExists);
     const ol = $("setList"); ol.innerHTML = "";
-    $("setCount").textContent = `${set.length} of ${MAX_SET}`;
+    const sc = $("setCount"); const was = sc.textContent; sc.textContent = `${set.length}/${MAX_SET}`;
+    if (was && was !== sc.textContent && $("panelSet").hidden) { sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump"); }
     if (!set.length) {
       const li = document.createElement("li"); li.className = "set-empty";
-      li.textContent = "No songs in the set yet. Use + next to a song in the list, or add a new one below.";
+      li.textContent = "No songs in the set yet. Open All songs and press + next to a song, or add a new one below.";
       ol.append(li);
     }
     set.forEach((id, i) => {
@@ -582,7 +607,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   function renderList() {
     const songs = allSongs();
     const set = getSet();
-    $("listCap").textContent = `Songs (${songs.length})`;
+    $("listCap").textContent = songs.length;
     const q = $("search").value.trim().toLowerCase();
     const shown = q ? songs.filter(s => s.title.toLowerCase().includes(q)) : songs;
     const ul = $("songList"); ul.innerHTML = "";
@@ -731,6 +756,23 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
       else { FS.pending = h; renderFolderUI(); }
     } catch {}
   }
+
+
+  // ---------- Set / songs tabs ----------
+  function showTab(which) {
+    const set = which === "set";
+    $("tabSet").setAttribute("aria-selected", String(set));
+    $("tabSongs").setAttribute("aria-selected", String(!set));
+    $("tabSet").tabIndex = set ? 0 : -1; $("tabSongs").tabIndex = set ? -1 : 0;
+    $("panelSet").hidden = !set; $("panelSongs").hidden = set;
+    store.set("sideTab", which);
+  }
+  $("tabSet").onclick = () => showTab("set");
+  $("tabSongs").onclick = () => showTab("songs");
+  [$("tabSet"), $("tabSongs")].forEach(t => t.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); const to = t.id === "tabSet" ? "songs" : "set"; showTab(to); $(to === "set" ? "tabSet" : "tabSongs").focus(); }
+  }));
+  showTab(store.get("sideTab", "set"));
 
   // ---------- Settings controls ----------
   $("settingsBox").open = !!store.get("settingsOpen", false);
