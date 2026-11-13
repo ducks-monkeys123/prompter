@@ -287,8 +287,8 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     </div>
     <details class="keys">
       <summary>Keyboard shortcuts on the prompter</summary>
-      On the prompter: <kbd>Space</kbd> or click to play/pause · <kbd>↑</kbd><kbd>↓</kbd> or mouse wheel while rolling to change speed ·
-      <kbd>←</kbd><kbd>→</kbd> previous/next song · <kbd>1</kbd>–<kbd>9</kbd>, <kbd>0</kbd> jump to song 1–10 · <kbd>+</kbd><kbd>−</kbd> text size · <kbd>[</kbd><kbd>]</kbd> line width ·
+      On the prompter: <kbd>Space</kbd> or click to play/pause · while rolling, <kbd>↑</kbd><kbd>↓</kbd> or the mouse wheel change speed and <kbd>←</kbd><kbd>→</kbd> go to the previous/next song ·
+      while paused, <kbd>↑</kbd><kbd>↓</kbd> or the mouse wheel move the lyrics up and down · <kbd>1</kbd>–<kbd>9</kbd>, <kbd>0</kbd> jump to song 1–10 · <kbd>+</kbd><kbd>−</kbd> text size · <kbd>[</kbd><kbd>]</kbd> line width ·
       <kbd>Home</kbd> start of set · <kbd>M</kbd> mirror · <kbd>F</kbd> full screen · <kbd>Esc</kbd> back to editor
     </details>
   </details>
@@ -965,14 +965,23 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   $("widenBtn").onclick = () => setWidth(prefs.width + 2);
   $("mirrorBtn").onclick = () => setMirror(!prefs.mirror);
   $("fsBtn").onclick = fullscreen;
+  // Move the lyrics by about one line (paused only).
+  function nudge(dir) {
+    const step = Math.round(prefs.size * 1.3);
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    state.pos = clamp(scroller.scrollTop + dir * step, 0, max);
+    scroller.scrollTop = state.pos;
+  }
   document.addEventListener("keydown", e => {
     if (stage.hidden) return;
     const k = e.key;
     if (k === " " || k === "k") { e.preventDefault(); if (document.activeElement?.classList.contains("hb")) document.activeElement.blur(); toggle(); }
-    else if (k === "ArrowUp") { e.preventDefault(); setSpeed(state.speed + 1); }
-    else if (k === "ArrowDown") { e.preventDefault(); setSpeed(state.speed - 1); }
-    else if (k === "ArrowLeft") { e.preventDefault(); prevSong(); }
-    else if (k === "ArrowRight") { e.preventDefault(); nextSong(); }
+    // While rolling: up/down change speed, left/right change song.
+    // While paused: up/down move the lyrics a line at a time, left/right do nothing.
+    else if (k === "ArrowUp") { e.preventDefault(); if (state.playing) setSpeed(state.speed + 1); else nudge(-1); }
+    else if (k === "ArrowDown") { e.preventDefault(); if (state.playing) setSpeed(state.speed - 1); else nudge(1); }
+    else if (k === "ArrowLeft") { e.preventDefault(); if (state.playing) prevSong(); }
+    else if (k === "ArrowRight") { e.preventDefault(); if (state.playing) nextSong(); }
     else if (/^[0-9]$/.test(k)) { const n = k === "0" ? 10 : +k; if (n <= state.songs.length) jumpTo(n - 1); }
     else if (k === "+" || k === "=") setSize(prefs.size + 8);
     else if (k === "-" || k === "_") setSize(prefs.size - 8);
