@@ -217,7 +217,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     <aside class="side">
       <section class="sheet side-tabs">
         <div class="seg" role="tablist" aria-label="Set and songs">
-          <button class="seg-btn" role="tab" id="tabSet" aria-controls="panelSet" type="button">Tonight's set <span class="count" id="setCount">0/10</span></button>
+          <button class="seg-btn" role="tab" id="tabSet" aria-controls="panelSet" type="button">Tonight's set <span class="count" id="setCount">0</span></button>
           <button class="seg-btn" role="tab" id="tabSongs" aria-controls="panelSongs" type="button">All songs <span class="count" id="listCap">0</span></button>
         </div>
 
@@ -329,7 +329,6 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  const MAX_SET = 10;
   const SETTINGS_FILE = "prompter-settings.json";
   const DEFAULT_SPEED = 6;
   const store = {
@@ -519,7 +518,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     if (!ed.id) return;
     const set = getSet();
     if (set.includes(ed.id)) setSet(set.filter(x => x !== ed.id));
-    else if (set.length < MAX_SET) setSet([...set, ed.id]);
+    else setSet([...set, ed.id]);
     renderSet(); renderList(); renderPaneButtons();
   };
   // A song started from the set goes into the set as soon as it's saved.
@@ -527,7 +526,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     if (!ed.addToSet || !ed.id) return;
     ed.addToSet = false;
     const set = getSet();
-    if (!set.includes(ed.id) && set.length < MAX_SET) setSet([...set, ed.id]);
+    if (!set.includes(ed.id)) setSet([...set, ed.id]);
   }
   $("newBtn").onclick = () => newSong(false);
   $("newBtn2").onclick = () => newSong(false);
@@ -552,8 +551,6 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     const inSet = ed.id && set.includes(ed.id);
     const b = $("setToggleBtn");
     b.textContent = inSet ? `Remove from set (#${set.indexOf(ed.id) + 1})` : "+ Add to set";
-    b.disabled = !inSet && set.length >= MAX_SET;
-    b.title = b.disabled ? `The set already has ${MAX_SET} songs` : "";
     $("promptBtn").disabled = !ed.lyrics.trim();
     const d = $("deleteBtn");
     d.textContent = ed.id ? "Delete song" : "Discard";
@@ -572,7 +569,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   function renderSet() {
     const set = getSet().filter(songExists);
     const ol = $("setList"); ol.innerHTML = "";
-    const sc = $("setCount"); const was = sc.textContent; sc.textContent = `${set.length}/${MAX_SET}`;
+    const sc = $("setCount"); const was = sc.textContent; sc.textContent = `${set.length}`;
     if (was && was !== sc.textContent && $("panelSet").hidden) { sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump"); }
     if (!set.length) {
       const li = document.createElement("li"); li.className = "set-empty";
@@ -595,8 +592,6 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
       ol.append(li);
     });
     const nb = $("newInSetBtn");
-    nb.disabled = set.length >= MAX_SET;
-    nb.title = nb.disabled ? `The set already has ${MAX_SET} songs` : "";
     const sb = $("startBtn");
     sb.disabled = !set.length;
     sb.textContent = set.length ? `● Start set (${set.length})` : "● Start set";
@@ -636,9 +631,8 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
         const tag = document.createElement("span"); tag.className = "inset"; tag.textContent = "Set #" + (pos + 1); li.append(tag);
       } else {
         const add = document.createElement("button"); add.type = "button"; add.className = "icon"; add.textContent = "+";
-        add.title = set.length >= MAX_SET ? `The set already has ${MAX_SET} songs` : "Add to tonight's set";
+        add.title = "Add to tonight's set";
         add.setAttribute("aria-label", `Add ${s.title} to tonight's set`);
-        add.disabled = set.length >= MAX_SET;
         add.onclick = () => { setSet([...getSet(), s.id]); renderSet(); renderList(); renderPaneButtons(); };
         li.append(add);
       }
@@ -709,10 +703,10 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
       if (typeof cfg.lineWidth === "number") prefs.width = clamp(cfg.lineWidth, 14, 64);
       ["mirror", "pauseBetween"].forEach(k => { if (typeof cfg[k] === "boolean") prefs[k] = cfg[k]; });
       if (cfg.songSpeeds && typeof cfg.songSpeeds === "object") Object.assign(songSpeeds, cfg.songSpeeds);
-      FS.set = (Array.isArray(cfg.setlist) ? cfg.setlist : []).map(t => t + ".txt").filter(f => FS.files.includes(f)).slice(0, MAX_SET);
+      FS.set = (Array.isArray(cfg.setlist) ? cfg.setlist : []).map(t => t + ".txt").filter(f => FS.files.includes(f));
     } else {
       // New folder: carry tonight's set over from this browser.
-      FS.set = localSet.map(id => (localSongs.find(s => s.id === id) || {}).file).filter(Boolean).slice(0, MAX_SET);
+      FS.set = localSet.map(id => (localSongs.find(s => s.id === id) || {}).file).filter(Boolean);
     }
     saveLocal(); await saveSettingsFile();
     // Keep the open song open if it came across.
