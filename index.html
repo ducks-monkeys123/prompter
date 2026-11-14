@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Rolling Prompter</title>
+<title>Prompter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@500&display=swap">
 <style>
-/* Layout: a two-pane editor. Left: tonight's set (up to 4) above an alphabetical song list with letter headings. Right: the selected song's title, speed and lyrics. Then a full-screen blue-edged "stage" that runs the set. */
+/* Layout: the song list fills the page until a song is opened; then tabs (All songs / Set) sit on the left and the open song on the right. Songs save only with Save or Ctrl/Cmd+S. Then a full-screen blue-edged "stage" that runs the set. */
 :root {
   --bg: #eef1f5;
   --surface: #ffffff;
@@ -17,6 +17,8 @@
   --accent: #e8a317;      /* reading line amber */
   --tally: #e0352b;       /* on-air red */
   --sel: #fff6e0;         /* selected song row */
+  --letter-bg: #dfe5ee;   /* A, B, C… dividers in the song list */
+  --letter-fg: #2a3442;
   --stage-fg: #000000;
   --stage-dim: #3d6f8f;
   --stage-gradient: linear-gradient(to right, #4abfff 0%, #b4e5fe 20%, #eef9ff 40%, #ffffff 50%, #eef9ff 60%, #b4e5fe 80%, #4abfff 100%);
@@ -29,11 +31,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #11161d; --surface: #19202a; --fg: #e9edf2; --muted: #93a0b1; --line: #2a3340; --sel: #2c2716;
+    --letter-bg: #2a3442; --letter-fg: #e9edf2;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #11161d; --surface: #19202a; --fg: #e9edf2; --muted: #93a0b1; --line: #2a3340; --sel: #2c2716;
+  --letter-bg: #2a3442; --letter-fg: #e9edf2;
   color-scheme: dark;
 }
 *, *::before, *::after { box-sizing: border-box; }
@@ -93,7 +97,7 @@ button:disabled { cursor: default; }
 .list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #search { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
 #songList { list-style: none; margin: 0; padding: 0; max-height: min(62vh, 640px); overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
-#songList .letter { position: sticky; top: 0; z-index: 1; background: var(--surface); border-bottom: 1px solid var(--line); padding: 3px 12px; font-family: var(--f-mono); font-size: .78rem; color: var(--muted); }
+#songList .letter { position: sticky; top: 0; z-index: 1; background: var(--letter-bg); color: var(--letter-fg); border-bottom: 1px solid var(--line); padding: 4px 12px; font-family: var(--f-mono); font-size: .82rem; font-weight: 500; letter-spacing: .06em; }
 #songList .row { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); padding-right: 6px; }
 #songList .row:last-child { border-bottom: 0; }
 #songList .row.sel { background: var(--sel); box-shadow: inset 3px 0 0 var(--accent); }
@@ -130,7 +134,7 @@ button:disabled { cursor: default; }
   .songs-sheet { min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); }
   #songList { max-height: none; min-height: 0; }
   .pane { min-height: 0; grid-template-rows: minmax(0, 1fr); }
-  #songPane { min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  #songPane { min-height: 0; grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
   #script { min-height: 0; height: 100%; resize: none; }
   .settings-sheet[open] { max-height: 45vh; overflow: auto; }
   #songList { min-height: 120px; }
@@ -158,6 +162,41 @@ button:disabled { cursor: default; }
   #setList { min-height: 0; overflow: auto; }
   #songList { max-height: none; min-height: 0; }
 }
+
+/* Browse mode: no song open, the list gets the full width */
+.workspace.browse { grid-template-columns: minmax(0, 1fr); }
+.workspace.browse .pane { display: none; }
+#songList .row .row-btn { display: none; }
+.workspace.browse #songList .row { padding-right: 10px; gap: 8px; }
+.workspace.browse #songList .row .row-btn { display: inline-flex; }
+.workspace.browse #songList .row .icon.add { display: none; }
+.workspace.browse .pick { padding-block: 11px; font-size: 1.02rem; }
+.workspace.browse .seg { max-width: 420px; }
+.workspace.browse .side-tabs { grid-template-columns: minmax(0, 1fr); }
+.workspace.browse #startBtn { justify-self: start; min-width: 240px; }
+
+/* Editor header: save state, Save, Close */
+.pane-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pane-head #saveState { flex: 1 1 160px; min-width: 0; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+.pane-head #saveState.err { color: var(--tally); font-weight: 700; }
+.chip { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; border-radius: 999px; padding: 3px 10px; background: var(--bg); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.chip.unsaved { background: var(--sel); color: var(--fg); border-color: var(--accent); }
+.chip.unsaved::before { content: "● "; color: var(--accent); }
+.kbd-in { background: rgb(255 255 255 / .18); border-color: rgb(255 255 255 / .35); color: #fff; margin-left: 4px; }
+.go.small:disabled .kbd-in { opacity: .8; }
+.meta-gap { flex: 1; }
+
+/* Light / Dark / Auto switch (editor screens only; the prompter screen always keeps its blue look) */
+.theme-switch { display: inline-flex; padding: 3px; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 9px; flex: none; }
+.theme-switch button { background: transparent; border: 0; border-radius: 6px; padding: 4px 10px; font-size: .85rem; color: var(--muted); white-space: nowrap; }
+.theme-switch button[aria-pressed="true"] { background: var(--surface); color: var(--fg); font-weight: 700; box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+
+/* In-page dialog */
+.modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: rgb(10 14 20 / .45); }
+.modal-card { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 20px; width: min(440px, 100%); display: grid; gap: 12px; box-shadow: 0 12px 40px rgb(0 0 0 / .25); }
+.modal-card h2 { margin: 0; font-family: var(--f-display); font-size: 1.25rem; }
+.modal-card p { margin: 0; color: var(--muted); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
 /* Prompter settings */
 .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
@@ -204,8 +243,13 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 
 <main id="editor">
   <header class="topbar">
-    <div class="brand"><span class="tally" aria-hidden="true"></span><h1>Rolling Prompter</h1></div>
+    <div class="brand"><span class="tally" aria-hidden="true"></span><h1>Prompter</h1></div>
     <div class="folderbar">
+      <div class="theme-switch" role="group" aria-label="Colour theme">
+        <button type="button" data-theme-choice="auto" title="Follow your computer's setting">Auto</button>
+        <button type="button" data-theme-choice="light" title="Light mode">☀ Light</button>
+        <button type="button" data-theme-choice="dark" title="Dark mode">☾ Dark</button>
+      </div>
       <span id="folderStatus">Songs are kept in this browser.</span>
       <button class="ghost small" id="reconnectBtn" type="button" hidden>Reconnect folder</button>
       <button class="ghost small" id="folderBtn" type="button">Choose songs folder</button>
@@ -217,8 +261,8 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     <aside class="side">
       <section class="sheet side-tabs">
         <div class="seg" role="tablist" aria-label="Set and songs">
-          <button class="seg-btn" role="tab" id="tabSet" aria-controls="panelSet" type="button">Tonight's set <span class="count" id="setCount">0</span></button>
           <button class="seg-btn" role="tab" id="tabSongs" aria-controls="panelSongs" type="button">All songs <span class="count" id="listCap">0</span></button>
+          <button class="seg-btn" role="tab" id="tabSet" aria-controls="panelSet" type="button">Set <span class="count" id="setCount">0</span></button>
         </div>
 
         <div class="tab-panel set-panel" id="panelSet" role="tabpanel" aria-labelledby="tabSet">
@@ -229,7 +273,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
         <div class="tab-panel songs-panel" id="panelSongs" role="tabpanel" aria-labelledby="tabSongs" hidden>
           <div class="list-head">
             <input type="search" id="search" placeholder="Search songs" aria-label="Search songs" autocomplete="off">
-            <button class="ghost small" id="newBtn" type="button">+ New</button>
+            <button class="go small" id="newBtn" type="button">+ New song</button>
           </div>
           <ul id="songList"></ul>
         </div>
@@ -244,6 +288,12 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
         <button class="go" id="newBtn2" type="button">+ New song</button>
       </div>
       <div id="songPane">
+        <div class="pane-head">
+          <span id="dirtyChip" class="chip">Saved</span>
+          <span id="saveState"></span>
+          <button class="go small" id="saveBtn" type="button">Save <kbd class="kbd-in" id="saveKey">Ctrl S</kbd></button>
+          <button class="ghost small" id="closeBtn" type="button" title="Close this song and go back to the full list">✕ Close</button>
+        </div>
         <div class="pane-top">
           <div class="field">
             <label class="cap" for="songTitle">Title</label>
@@ -258,7 +308,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
         <textarea id="script" spellcheck="true" placeholder="Type or paste the lyrics. Leave a blank line between verses."></textarea>
         <div class="meta">
           <span><b id="wc">0</b> words · <b id="lc">0</b> lines</span>
-          <span id="saveState"></span>
+          <span class="meta-gap"></span>
           <span class="pane-actions">
             <button class="ghost small" id="setToggleBtn" type="button">+ Add to set</button>
             <button class="ghost small" id="deleteBtn" type="button">Delete song</button>
@@ -293,6 +343,18 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     </details>
   </details>
 </main>
+
+<div id="dlg" class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" hidden>
+  <div class="modal-card">
+    <h2 id="dlgTitle">Save changes?</h2>
+    <p id="dlgText"></p>
+    <div class="modal-actions">
+      <button class="ghost" id="dlgCancel" type="button">Cancel</button>
+      <button class="ghost" id="dlgDiscard" type="button">Don't save</button>
+      <button class="go" id="dlgSave" type="button">Save</button>
+    </div>
+  </div>
+</div>
 
 <div id="stage" hidden>
   <div id="scroller"><div id="text"></div></div>
@@ -424,46 +486,84 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 
   // ---------- Editor state: the song open on the right ----------
   // id null = a new song not saved yet.
-  const ed = { open: false, id: null, title: "", lyrics: "", lastSaved: null, speed: DEFAULT_SPEED, dirty: false, error: "", addToSet: false };
+  // saved = what the song looked like at its last save; "dirty" means the editor differs from it.
+  const ed = { open: false, id: null, title: "", lyrics: "", lastSaved: null, speed: DEFAULT_SPEED, dirty: false, error: "", addToSet: false, saved: null };
   const state = { speed: DEFAULT_SPEED, playing: false, pos: 0, songs: [], songIdx: 0 };
   const titleIn = $("songTitle"), script = $("script"), speedIn = $("speed");
 
+  function snapshot() { ed.saved = { title: ed.title, lyrics: ed.lyrics, speed: ed.speed }; }
+  function refreshDirty() {
+    ed.dirty = ed.id
+      ? !!ed.saved && (ed.title !== ed.saved.title || ed.lyrics !== ed.saved.lyrics || ed.speed !== ed.saved.speed)
+      : !!(ed.title.trim() || ed.lyrics.trim());
+  }
   async function openSong(id) {
-    await saveEditor();
+    if (ed.open && ed.id === id) return;
+    if (!(await confirmLeave())) return;
     // Read the song first, then switch the editor to it.
     const lyrics = await readLyrics(id);
     const title = titleOf(id) === "Untitled" && !inFolder() ? "" : titleOf(id);
     Object.assign(ed, { open: true, id, title, lyrics, lastSaved: lyrics, speed: speedOf(id), dirty: false, error: "", addToSet: false });
+    snapshot();
     renderAll(true);
   }
   async function newSong(addToSet) {
-    await saveEditor();
+    if (!(await confirmLeave())) return;
     Object.assign(ed, { open: true, id: null, title: "", lyrics: "", lastSaved: null, speed: DEFAULT_SPEED, dirty: false, error: "", addToSet: addToSet === true });
+    snapshot();
     renderAll(true);
     titleIn.focus();
   }
+  async function closeEditor() {
+    if (!(await confirmLeave())) return;
+    Object.assign(ed, { open: false, id: null, dirty: false, error: "", addToSet: false });
+    renderAll();
+  }
 
-  let saveT;
-  function scheduleSave(ms) { clearTimeout(saveT); saveT = setTimeout(saveEditor, ms); }
+  // Ask before leaving a song with unsaved changes. Resolves true when it's fine to move on.
+  function askDialog(title) {
+    return new Promise(resolve => {
+      const d = $("dlg");
+      $("dlgText").textContent = `“${title}” has changes that haven't been saved.`;
+      d.hidden = false;
+      const done = v => { d.hidden = true; d.removeEventListener("keydown", onKey); resolve(v); };
+      const onKey = e => { if (e.key === "Escape") { e.preventDefault(); done("cancel"); } };
+      d.addEventListener("keydown", onKey);
+      $("dlgSave").onclick = () => done("save");
+      $("dlgDiscard").onclick = () => done("discard");
+      $("dlgCancel").onclick = () => done("cancel");
+      d.onclick = e => { if (e.target === d) done("cancel"); };
+      $("dlgSave").focus();
+    });
+  }
+  async function confirmLeave() {
+    if (!ed.open || !ed.dirty) return true;
+    const choice = await askDialog(ed.title.trim() || "New song");
+    if (choice === "cancel") return false;
+    if (choice === "discard") return true;
+    await saveEditor();
+    return !ed.dirty;   // stay if the save didn't go through (e.g. missing title)
+  }
+
   let saving = Promise.resolve();
   function saveEditor() { saving = saving.then(doSave, doSave); return saving; }
   async function doSave() {
-    clearTimeout(saveT);
-    if (!ed.open || !ed.dirty) return;
+    if (!ed.open) return;
+    refreshDirty();
+    if (!ed.dirty) { renderSaveState(); return; }
     ed.error = "";
+    if (!cleanTitle(ed.title)) { ed.error = "Give the song a title before saving."; renderSaveState(); titleIn.focus(); return; }
     if (!inFolder()) {
-      if (!ed.id) {
-        if (!ed.title.trim() && !ed.lyrics.trim()) return;
-        ed.id = newId(); localSongs.push({ id: ed.id, title: "", lyrics: "" });
-        songSpeeds[ed.id] = ed.speed;
-      }
+      const clash = localSongs.find(x => x.id !== ed.id && x.title.trim().toLowerCase() === ed.title.trim().toLowerCase());
+      if (clash) { ed.error = `There's already a song called “${clash.title.trim()}”. Use a different title.`; renderSaveState(); return; }
+      if (!ed.id) { ed.id = newId(); localSongs.push({ id: ed.id, title: "", lyrics: "" }); }
       const s = localSongs.find(x => x.id === ed.id);
       if (s) { s.title = ed.title; s.lyrics = ed.lyrics; s.pushed = false; }
-      ed.dirty = false; claimSetSpot(); saveLocal(); renderList(); renderSet(); renderSaveState();
+      songSpeeds[ed.id] = ed.speed;
+      snapshot(); ed.dirty = false; claimSetSpot(); saveLocal(); renderList(); renderSet(); renderSaveState(); renderPaneButtons();
       return;
     }
     const name = fileName(ed.title);
-    if (!name) { ed.error = "Add a title to save this song to your folder."; renderSaveState(); return; }
     if (name !== ed.id && FS.files.some(f => f.toLowerCase() === name.toLowerCase())) {
       ed.error = `There's already a song called “${stem(name)}”. Use a different title.`; renderSaveState(); return;
     }
@@ -477,19 +577,30 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
         if (songSpeeds[stem(ed.id)] != null) { songSpeeds[stem(name)] = songSpeeds[stem(ed.id)]; delete songSpeeds[stem(ed.id)]; }
       }
       songSpeeds[stem(name)] = ed.speed;
-      ed.id = name; ed.lastSaved = ed.lyrics; ed.dirty = false;
+      ed.id = name; ed.lastSaved = ed.lyrics; snapshot(); ed.dirty = false;
       await listFolder();
       claimSetSpot();
       saveLocal(); scheduleSettingsSave();
       renderList(); renderSet(); renderFolderUI();
     } catch (e) { folderError(e); }
-    renderSaveState();
+    renderSaveState(); renderPaneButtons();
   }
 
-  titleIn.addEventListener("input", () => { ed.title = titleIn.value; ed.dirty = true; renderSaveState(); scheduleSave(1500); });
-  titleIn.addEventListener("change", () => saveEditor());
-  script.addEventListener("input", () => { ed.lyrics = script.value; ed.dirty = true; updateMeta(); renderSaveState(); $("promptBtn").disabled = !ed.lyrics.trim(); scheduleSave(800); });
-  window.addEventListener("beforeunload", () => { if (ed.dirty) doSave(); });
+  // Nothing saves by itself: typing only marks the song as changed.
+  titleIn.addEventListener("input", () => { ed.title = titleIn.value; ed.error = ""; refreshDirty(); renderSaveState(); });
+  script.addEventListener("input", () => { ed.lyrics = script.value; refreshDirty(); updateMeta(); renderSaveState(); $("promptBtn").disabled = !ed.lyrics.trim(); });
+  window.addEventListener("beforeunload", e => { if (ed.open && ed.dirty) { e.preventDefault(); e.returnValue = ""; } });
+  $("saveBtn").onclick = () => saveEditor();
+  $("closeBtn").onclick = () => closeEditor();
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  $("saveKey").textContent = isMac ? "⌘S" : "Ctrl S";
+  $("saveBtn").title = isMac ? "Save (⌘S)" : "Save (Ctrl+S)";
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();               // never open the browser's own "Save page" box
+      if (stage.hidden && $("dlg").hidden && ed.open) saveEditor();
+    }
+  });
 
   // Delete with an in-page confirm step.
   let deleteArmed = false, deleteT;
@@ -514,7 +625,6 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   };
 
   $("setToggleBtn").onclick = async () => {
-    if (!ed.id) await saveEditor();
     if (!ed.id) return;
     const set = getSet();
     if (set.includes(ed.id)) setSet(set.filter(x => x !== ed.id));
@@ -539,26 +649,33 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     $("lc").textContent = t ? t.split(/\n/).filter(l => l.trim()).length : 0;
   }
   function renderSaveState() {
-    let t = "";
+    const chip = $("dirtyChip"), st = $("saveState");
+    let c, t;
+    if (!ed.id) { c = ed.dirty ? "Not saved" : "New song"; t = ed.addToSet ? "It joins the set when you save it." : "Nothing is saved until you click Save."; }
+    else if (ed.dirty) { c = "Unsaved changes"; t = ""; }
+    else { c = "Saved"; t = inFolder() ? `In your folder as “${ed.id}”` : "Saved in this browser"; }
     if (ed.error) t = ed.error;
-    else if (!ed.id && !ed.dirty) t = (ed.addToSet ? "New song for the set. " : "New song. ") + (inFolder() ? "It's saved to your folder once it has a title." : "It's saved as you type.");
-    else if (ed.dirty) t = "Saving…";
-    else t = inFolder() ? `Saved to folder as “${ed.id}”` : "Saved in this browser";
-    $("saveState").textContent = t;
+    chip.textContent = c;
+    chip.classList.toggle("unsaved", ed.dirty);
+    st.textContent = t; st.classList.toggle("err", !!ed.error);
+    $("saveBtn").disabled = !ed.dirty;
   }
   function renderPaneButtons() {
     const set = getSet();
     const inSet = ed.id && set.includes(ed.id);
     const b = $("setToggleBtn");
     b.textContent = inSet ? `Remove from set (#${set.indexOf(ed.id) + 1})` : "+ Add to set";
+    b.disabled = !ed.id;
+    b.title = ed.id ? "" : "Save the song first";
     $("promptBtn").disabled = !ed.lyrics.trim();
     const d = $("deleteBtn");
     d.textContent = ed.id ? "Delete song" : "Discard";
     d.classList.remove("danger");
   }
   function renderPane(force) {
-    $("emptyPane").hidden = ed.open;
+    $("emptyPane").hidden = true;
     $("songPane").hidden = !ed.open;
+    document.querySelector(".workspace").classList.toggle("browse", !ed.open);
     if (!ed.open) return;
     // Don't disturb a box mid-typing, unless a different song was just opened.
     if (force || document.activeElement !== titleIn) titleIn.value = ed.title;
@@ -573,7 +690,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     if (was && was !== sc.textContent && $("panelSet").hidden) { sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump"); }
     if (!set.length) {
       const li = document.createElement("li"); li.className = "set-empty";
-      li.textContent = "No songs in the set yet. Open All songs and press + next to a song, or add a new one below.";
+      li.textContent = "No songs in the set yet. In All songs, press “Add to set” next to a song, or add a new one below.";
       ol.append(li);
     }
     set.forEach((id, i) => {
@@ -609,7 +726,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     const frag = document.createDocumentFragment();
     if (!shown.length) {
       const li = document.createElement("li"); li.className = "list-empty";
-      li.textContent = songs.length ? "No songs match that search." : "No songs yet. Click “+ New song” to add one.";
+      li.textContent = songs.length ? "No songs match that search." : "No songs yet. Click “+ New song” to add your first one.";
       frag.append(li);
     }
     let letter = null;
@@ -627,15 +744,22 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
       b.onclick = () => openSong(s.id);
       li.append(b);
       const pos = set.indexOf(s.id);
+      const addToSet = () => { setSet([...getSet(), s.id]); renderSet(); renderList(); renderPaneButtons(); };
       if (pos >= 0) {
         const tag = document.createElement("span"); tag.className = "inset"; tag.textContent = "Set #" + (pos + 1); li.append(tag);
       } else {
-        const add = document.createElement("button"); add.type = "button"; add.className = "icon"; add.textContent = "+";
-        add.title = "Add to tonight's set";
-        add.setAttribute("aria-label", `Add ${s.title} to tonight's set`);
-        add.onclick = () => { setSet([...getSet(), s.id]); renderSet(); renderList(); renderPaneButtons(); };
-        li.append(add);
+        const add = document.createElement("button"); add.type = "button"; add.className = "icon add"; add.textContent = "+";
+        add.title = "Add to the set";
+        add.setAttribute("aria-label", `Add ${s.title} to the set`);
+        add.onclick = addToSet;
+        const addWide = document.createElement("button"); addWide.type = "button"; addWide.className = "ghost small row-btn"; addWide.textContent = "+ Add to set";
+        addWide.onclick = addToSet;
+        li.append(add, addWide);
       }
+      const pr = document.createElement("button"); pr.type = "button"; pr.className = "ghost small row-btn"; pr.textContent = "▶ Prompt";
+      pr.title = `Open the prompter with ${s.title}`;
+      pr.onclick = () => startSingleId(s.id);
+      li.append(pr);
       frag.append(li);
     });
     ul.append(frag);
@@ -674,16 +798,16 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   async function saveSettingsFile() {
     if (!FS.dir) return;
     const data = {
-      app: "Rolling Prompter", version: 2,
+      app: "Prompter", version: 2,
       textSize: prefs.size, lineWidth: prefs.width, mirror: prefs.mirror,
       pauseBetween: prefs.pauseBetween,
+      theme: store.get("theme", "auto"),
       setlist: FS.set.filter(f => FS.files.includes(f)).map(stem),
       songSpeeds: Object.fromEntries(Object.entries(songSpeeds).filter(([k]) => FS.files.includes(k + ".txt")))
     };
     try { await writeText(SETTINGS_FILE, JSON.stringify(data, null, 2)); } catch (e) { folderError(e); }
   }
   async function useFolder(h) {
-    await saveEditor();
     FS.dir = h; FS.pending = null;
     await listFolder();
     // Copy songs that only exist in this browser into the folder (once), so nothing is left behind.
@@ -702,6 +826,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
       if (typeof cfg.textSize === "number") prefs.size = clamp(cfg.textSize, 28, 160);
       if (typeof cfg.lineWidth === "number") prefs.width = clamp(cfg.lineWidth, 14, 64);
       ["mirror", "pauseBetween"].forEach(k => { if (typeof cfg[k] === "boolean") prefs[k] = cfg[k]; });
+      if (["auto", "light", "dark"].includes(cfg.theme)) applyTheme(cfg.theme);
       if (cfg.songSpeeds && typeof cfg.songSpeeds === "object") Object.assign(songSpeeds, cfg.songSpeeds);
       FS.set = (Array.isArray(cfg.setlist) ? cfg.setlist : []).map(t => t + ".txt").filter(f => FS.files.includes(f));
     } else {
@@ -714,10 +839,10 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
       const s = localSongs.find(x => x.id === ed.id);
       if (s && s.file) ed.id = s.file; else Object.assign(ed, { open: false, id: null });
     }
-    if (!ed.open) { const first = FS.set[0] || allSongs()[0]?.id; if (first) await openSong(first); }
     renderAll();
   }
   $("folderBtn").onclick = async () => {
+    if (!(await confirmLeave())) return;
     try {
       const h = await window.showDirectoryPicker({ id: "prompter-songs", mode: "readwrite", startIn: "documents" });
       try { await idb.set("dir", h); } catch {}
@@ -735,7 +860,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     catch (e) { folderError(e); }
   };
   $("forgetBtn").onclick = async () => {
-    await saveEditor();
+    if (!(await confirmLeave())) return;
     FS.dir = null; FS.pending = null; FS.files = []; FS.set = [];
     try { await idb.del("dir"); } catch {}
     Object.assign(ed, { open: false, id: null, dirty: false });
@@ -752,6 +877,20 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   }
 
 
+  // ---------- Light / Dark / Auto ----------
+  // Auto leaves the page to follow the computer (or whatever theme the page was opened with).
+  const root = document.documentElement;
+  const hostTheme = root.getAttribute("data-theme");
+  function applyTheme(choice) {
+    if (choice === "light" || choice === "dark") root.setAttribute("data-theme", choice);
+    else if (hostTheme) root.setAttribute("data-theme", hostTheme);
+    else root.removeAttribute("data-theme");
+    document.querySelectorAll("[data-theme-choice]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeChoice === choice)));
+    store.set("theme", choice);
+  }
+  document.querySelectorAll("[data-theme-choice]").forEach(b => b.onclick = () => { applyTheme(b.dataset.themeChoice); scheduleSettingsSave(); });
+  applyTheme(store.get("theme", "auto"));
+
   // ---------- Set / songs tabs ----------
   function showTab(which) {
     const set = which === "set";
@@ -766,7 +905,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   [$("tabSet"), $("tabSongs")].forEach(t => t.addEventListener("keydown", e => {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); const to = t.id === "tabSet" ? "songs" : "set"; showTab(to); $(to === "set" ? "tabSet" : "tabSongs").focus(); }
   }));
-  showTab(store.get("sideTab", "set"));
+  showTab("songs");
 
   // ---------- Settings controls ----------
   $("settingsBox").open = !!store.get("settingsOpen", false);
@@ -791,7 +930,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   function setSpeed(v, quiet) {
     v = clamp(Math.round(v), 1, 40);
     let id;
-    if (stage.hidden) { ed.speed = v; id = ed.id; $("speedOut").textContent = v; }
+    if (stage.hidden) { ed.speed = v; $("speedOut").textContent = v; refreshDirty(); renderSaveState(); syncSettings(); return; }
     else { state.speed = v; const s = state.songs[state.songIdx]; if (s) { s.speed = v; id = s.id; if (id === ed.id) ed.speed = v; } }
     if (id) { songSpeeds[speedKey(id)] = v; scheduleSettingsSave(); }
     syncSettings();
@@ -911,7 +1050,6 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   stage.addEventListener("pointermove", armIdle);
 
   async function startSet(fromIndex) {
-    await saveEditor();
     const set = getSet().filter(songExists);
     state.songs = [];
     for (const id of set) state.songs.push({ id, title: titleOf(id), lyrics: await readLyrics(id), speed: speedOf(id) });
@@ -920,8 +1058,12 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
   // Prompt just the song that's open, set or no set.
   async function startSingle() {
     if (!ed.open || !ed.lyrics.trim()) return;
-    await saveEditor();
     state.songs = [{ id: ed.id, title: ed.title.trim() || "Untitled", lyrics: ed.lyrics, speed: ed.speed }];
+    openStage(0);
+  }
+  // Prompt one song straight from the list.
+  async function startSingleId(id) {
+    state.songs = [{ id, title: titleOf(id), lyrics: await readLyrics(id), speed: speedOf(id) }];
     openStage(0);
   }
   function openStage(fromIndex) {
@@ -937,8 +1079,10 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
     pause();
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     stage.hidden = true; $("editor").hidden = false;
+    // Speed changes made while prompting are remembered; keep the open song's slider in step.
     const s = state.songs[state.songIdx];
-    if (s && s.id !== ed.id) await openSong(s.id); else { if (s) ed.speed = s.speed; renderAll(); }
+    if (s && ed.open && s.id === ed.id) { ed.speed = s.speed; if (ed.saved) ed.saved.speed = s.speed; refreshDirty(); }
+    renderAll();
   }
   async function fullscreen() {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await stage.requestFullscreen(); }
@@ -993,8 +1137,7 @@ kbd { font-family: var(--f-mono); font-size: 0.8em; border: 1px solid var(--line
 
   // ---------- Start ----------
   (async () => {
-    const first = localSet.find(songExists) || allSongs()[0]?.id;
-    if (first) await openSong(first); else renderAll();
+    renderAll();
     await initFolder();
   })();
 })();
